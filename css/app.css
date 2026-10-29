@@ -5,6 +5,14 @@
    InDesign → Figma : ÷ 3 (35 pt → 11.67 px, 42 pt → 14 px).
    ========================================================= */
 
+@font-face {
+  font-family: "Unica 77";
+  src: url("../fonts/Unica77LL-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 .phone {
   container-type: size;
   overflow: hidden;
