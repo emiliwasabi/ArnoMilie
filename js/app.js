@@ -468,7 +468,7 @@ function openRecap() {
 
 function animateCheckout(circleCount) {
   const target = checkoutStatus.offsetTop;
-  const duration = circleCount ? Math.min(18000, Math.max(5000, circleCount * 1500)) : 0;
+  const duration = circleCount ? Math.min(16000, Math.max(4500, circleCount * 1350)) : 0;
   const started = performance.now();
 
   const finish = () => {
