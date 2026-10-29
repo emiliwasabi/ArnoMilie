@@ -1,121 +1,287 @@
-/* app.css: the styles of your prototype. The demo's styles are here: replace them with yours. */
+/* =========================================================
+   IDEA — prototype (from Figma page « B2 — 20 entre rangées »)
+   Every value below is the Figma value in px on a 375 px wide
+   screen, multiplied by --u so the layout scales to the phone.
+   InDesign → Figma : ÷ 3 (35 pt → 11.67 px, 42 pt → 14 px).
+   ========================================================= */
 
-/* -- screen: one full view of the app; only one is visible at a time -- */
-.screen {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+.phone {
+  container-type: size;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  font-family: "Unica 77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+
 }
 
-.screen-header {
+.phone > * {
+  font-size: var(--size);
+  line-height: var(--lead);
+  --u: calc(min(100cqw, 430px) / 375);
+    /* tokens = Figma variables */
+  --text-primary: #000;
+  --text-secondary: #7f7f7f;   /* InDesign: 50 % tint of black */
+  --surface-paper: #fff;
+  --veil: rgba(0, 0, 0, .5);
+
+  /* type = text style IDEA/Body */
+  --size: calc(11.6667 * var(--u));  /* 35 pt / 3 */
+  --lead: calc(14 * var(--u));       /* 42 pt / 3 */
+  --cap:  calc(8.47 * var(--u));     /* Unica cap height 0.726 em */
+
+  /* grid */
+  --m: calc(10 * var(--u));          /* margin / gutter */
+  --col: calc(172.5 * var(--u));     /* column */
+  --w: calc(375 * var(--u));         /* screen */
+
+  /* recurring vertical values */
+  --cap-top: calc(10.28 * var(--u)); /* 10 + ascent 8.75 − cap 8.47 : top of the caps */
+  --next-line: calc(5.53 * var(--u));/* 14 − cap : baseline → caps of next line */
+  --row-gap: calc(20 * var(--u));    /* last baseline → next image (2 × 10) */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { background: #fff; }
+
+body {
+  width: 100%;
+  margin: 0;
+  background: #fff;
+  color: #000;
+  font-family: "Unica 77", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+body.locked { overflow: hidden; }
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; }
+img { display: block; }
+[hidden] { display: none !important; }
+
+/* ---------- text = Figma « leading trim : cap height »
+   the box goes from the top of the capitals to the last baseline,
+   so every spacing is measured exactly like in Figma            */
+.t {
+  display: block;
+  text-box: trim-both cap alphabetic;
+}
+@supports not (text-box: trim-both cap alphabetic) {
+  /* fallback for older browsers (Unica hhea metrics) */
+  .t { margin-top: calc(-3.03 * var(--u)); margin-bottom: calc(-2.5 * var(--u)); }
+}
+.muted { color: var(--text-secondary); }
+
+/* ---------- catalog scrolls inside the phone frame */
+.catalog { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; }
+
+/* ---------- header (catalog : 56.75 high, fixed) */
+.header {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--w);
+  background: var(--surface-paper);
+  z-index: 10;
+}
+.header--catalog { height: calc(56.75 * var(--u)); }
+.header--product { height: calc(70.75 * var(--u)); }
+
+.topbar {
+  position: absolute;
+  top: var(--cap-top);                       /* baseline 18.75 */
+  left: var(--m);
+  right: var(--m);
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
-  padding: calc(var(--safe-top) + var(--space-2)) var(--gutter-right) var(--space-2) var(--gutter-left);
-  border-bottom: 1px solid var(--color-line);
+  align-items: flex-start;
+}
+.nav {
+  position: absolute;
+  top: calc(38.28 * var(--u));               /* baseline 46.75 */
+  left: var(--m);
+  display: flex;
+  gap: var(--size);                          /* 1 em space, like InDesign */
 }
 
-.screen-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-3) var(--gutter-right) var(--space-4) var(--gutter-left);
+/* ---------- grid */
+.grid {
+  padding: calc(56.75 * var(--u)) var(--m) 0;
+  display: grid;
+  grid-template-columns: var(--col) var(--col);
+  column-gap: var(--m);
+  row-gap: 0;
+  align-items: start;
 }
-
-.screen-body > * + * {
-  margin-top: var(--space-3);
-}
-
-.screen-footer {
-  padding: var(--space-2) var(--gutter-right) calc(var(--safe-bottom) + var(--space-3)) var(--gutter-left);
-  border-top: 1px solid var(--color-line);
-}
-
-.screen-label {
-  font-size: var(--text-small);
-  color: var(--color-ink-soft);
-}
-
-.screen h1 {
-  font-size: var(--text-title);
-}
-
-@keyframes screen-enter {
-  from {
-    opacity: 0;
-    transform: translateY(0.5rem);
-  }
-}
-
-/* The animation only exists for people who have not asked for reduced motion. */
-@media (prefers-reduced-motion: no-preference) {
-  .screen:not([hidden]) {
-    animation: screen-enter var(--motion-quick) ease-out;
-  }
-}
-
-/* -- button -- */
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--tap-target);
-  min-height: var(--tap-target);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-ink);
-  border-radius: var(--radius-small);
-  background: var(--color-paper);
-  font-weight: 600;
-}
-
-.button:active {
-  background: var(--color-surface);
-}
-
-.button-primary {
-  width: 100%;
-  background: var(--color-ink);
-  color: var(--color-paper);
-}
-
-.button-primary:active {
-  background: var(--color-ink-soft);
-}
-
-/* -- product (demo) -- */
-.product-image {
-  width: 100%;
-  aspect-ratio: 1;
+.card { display: block; width: var(--col); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; appearance: none; }
+.card:disabled { opacity: 1; cursor: default; }
+.card__cover {
+  width: var(--col);
+  height: calc(259 * var(--u));
   object-fit: cover;
-  border-radius: var(--radius-large);
-  background: var(--color-surface);
+}
+.card__info {
+  padding-top: var(--cap-top);               /* image → caps of the title : 10.28 */
+  padding-bottom: var(--row-gap);            /* last baseline → next image : 20 */
+}
+.card__info .price { margin-top: var(--next-line); }
+.card[data-link] { cursor: pointer; }
+.card:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+
+/* ---------- footer (10 + ascent / 14 / 10) */
+.footer {
+  padding: var(--cap-top) var(--m) var(--m);
+  text-align: center;
 }
 
-.price {
-  font-size: var(--text-large);
+/* ---------- 2 — choice */
+.choice {
+  position: absolute;
+  inset: 0;
+  background: var(--veil);
+  z-index: 20;
 }
-
-.note {
-  color: var(--color-ink-soft);
-}
-
-.notice {
-  min-height: 1.5em;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-small);
-  color: var(--color-ink-soft);
-}
-
-/* -- summary (demo) -- */
-.summary-row {
+.choice__band {
+  position: absolute;
+  left: 50%;
+  top: 50%;                                  /* Figma : y 385 on 812 = centred */
+  transform: translate(-50%, -50%);
+  width: var(--w);
+  height: max(calc(42.75 * var(--u)), 44px);
+  background: var(--surface-paper);
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--color-line);
+}
+.choice__btn {
+  width: 50%;                                /* split on the gutter axis (187.5) */
+  height: 100%;
+  display: flex;                             /* buttons centre their content by default */
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding-top: var(--cap-top);
+  padding-left: var(--m);
+}
+.choice__btn + .choice__btn { padding-left: calc(5 * var(--u)); } /* text on column 2 : 192.5 */
+.choice__btn .price { margin-top: var(--next-line); }
+
+/* ---------- 3 — product */
+.product {
+  position: absolute;
+  inset: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--w);
+  background: var(--surface-paper);
+  z-index: 30;
+  overflow: hidden;
+}
+.header--product { position: absolute; transform: none; left: 0; }
+.product__title {
+  position: absolute;
+  top: calc(38.28 * var(--u));               /* baseline 46.75 */
+  left: var(--m);
+}
+.product__price {
+  position: absolute;
+  top: calc(52.28 * var(--u));               /* baseline 60.75 */
+  left: var(--m);
 }
 
-.summary-row dd {
-  font-weight: 600;
+/* slideshow : one screen per image, image 355 wide on the margins,
+   centred on the screen axis (406 / 812) → 20 between two images */
+.slider {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
+.slider::-webkit-scrollbar { display: none; }
+.slide {
+  flex: 0 0 var(--w);
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--m);
+}
+.slide img {
+  width: calc(355 * var(--u));
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.slide img {
+  -webkit-touch-callout: none;               /* no iOS « save image » menu on long press */
+  touch-action: pan-x;
+}
+
+/* loupe : 200 Ø (same as the Figma zoom circle), magnification ×4 */
+.loupe {
+  position: absolute;
+  width: calc(200 * var(--u));
+  height: calc(200 * var(--u));
+  border-radius: 50%;
+  background-color: var(--surface-paper);
+  background-repeat: no-repeat;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+}
+.slider.is-zooming { overflow-x: hidden; }
+
+/* defects found : 50 Ø, 5 apart, right margin, under Cart (0) (Figma : x 315, y 56.75) */
+/* the column goes down the whole page, as long as there is room
+   (stops 10 above the caps of the bottom line « 1/6 ») — rows computed in app.js.
+   No more room → new column on the left, 5 apart, starting again at the top */
+.found {
+  position: absolute;
+  top: calc(56.75 * var(--u));
+  right: var(--m);
+  display: grid;
+  grid-template-rows: repeat(var(--rows, 13), calc(50 * var(--u)));
+  grid-auto-flow: column;
+  grid-auto-columns: calc(50 * var(--u));
+  direction: rtl;
+  gap: calc(5 * var(--u));
+  z-index: 15;
+  pointer-events: none;
+}
+.found span {
+  display: block;
+  width: calc(50 * var(--u));
+  height: calc(50 * var(--u));
+  border-radius: 50%;
+  background-color: var(--surface-paper);
+  background-repeat: no-repeat;
+}
+
+/* debug : add ?zones to the URL to see the defect zones */
+.zone {
+  position: absolute;
+  border: 1px solid red;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* bottom line : baseline 10 from the bottom */
+.product__cta,
+.product__counter {
+  position: absolute;
+  bottom: var(--m);
+  z-index: 2;
+}
+.product__cta { left: var(--m); }
+.product__counter { right: var(--m); text-align: right; }
+
+.phone .view[hidden] { display: none !important; }
