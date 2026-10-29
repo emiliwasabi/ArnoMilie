@@ -194,6 +194,7 @@ img { display: block; }
   position: absolute;
   top: calc(38.28 * var(--u));               /* baseline 46.75 */
   left: var(--m);
+  font-weight: 400;
 }
 .product__price {
   position: absolute;
