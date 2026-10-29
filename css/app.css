@@ -252,6 +252,8 @@ img { display: block; }
 }
 .product.is-returning {
   transform: translate(-50%, -100%);
+  transition-duration: var(--checkout-motion-duration, 650ms);
+  transition-timing-function: linear;
 }
 .product.is-page-entering {
   transform: translate(-50%, 100%);
@@ -266,19 +268,23 @@ img { display: block; }
   left: var(--m);
   font-weight: 400;
 }
-.product__feedback {
+.product__delta {
   position: absolute;
-  top: calc(52.28 * var(--u));
+  bottom: calc(var(--m) + 34 * var(--u));
   left: var(--m);
-  color: #666;
+  z-index: 2;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: calc(35 * var(--u));
+  line-height: calc(42 * var(--u));
   opacity: 0;
-  transform: translateY(calc(160 * var(--u)));
+  transform: translateY(calc(10 * var(--u)));
   pointer-events: none;
 }
-.product__feedback.is-visible { opacity: 1; transform: translateY(0); }
-.product__feedback.is-exiting { opacity: 0; transform: translateY(calc(-8 * var(--u))); }
+.product__delta.is-visible { opacity: 1; transform: translateY(0); }
+.product__delta.is-exiting { opacity: 0; transform: translateY(calc(18 * var(--u))); }
 @media (prefers-reduced-motion: no-preference) {
-  .product__feedback { transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .7, .2, 1); }
+  .product__delta { transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .7, .2, 1); }
 }
 .product__price {
   position: absolute;
@@ -384,6 +390,7 @@ img { display: block; }
 /* price : 105 pt / auto 126 pt → 35 / 42, same baseline as the counter */
 .product__amount {
   left: var(--m);
+  bottom: var(--m);
   font-size: calc(35 * var(--u));
   line-height: calc(42 * var(--u));
 }
@@ -412,6 +419,7 @@ img { display: block; }
   will-change: transform;
 }
 .roll__strip span { display: block; height: calc(42 * var(--u)); }
+.roll__strip span:nth-child(10n + 11) { position: relative; top: calc(1 * var(--u)); }
 .roll__strip.is-moving { transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
 @media (prefers-reduced-motion: reduce) {
   .roll, .roll__strip.is-moving, .product { transition: none; }
@@ -433,11 +441,11 @@ img { display: block; }
 }
 
 
-/* ---------- 4 — checkout : found circles move through the screen */
+/* ---------- 4 — checkout : fixed circle, details sweep through its window */
 .recap { display: none; }
-.product.is-recap .slider,
 .product.is-recap .found,
 .product.is-recap .product__amount,
+.product.is-recap .product__delta,
 .product.is-recap .product__add,
 .product.is-recap .product__counter { display: none; }
 .product.is-recap .recap {
@@ -446,36 +454,37 @@ img { display: block; }
   inset: 0;
   overflow: hidden;
   touch-action: none;
-  z-index: 11;                                /* above the header (10) : circles pass over it */
+  z-index: 8;                                 /* keep the product header above the circle */
   will-change: transform;
-}
-.product.is-recap.is-entering .slider { display: flex; }
-.product.is-recap.is-entering .slider.is-fading { opacity: 0; }
-@media (prefers-reduced-motion: no-preference) {
-  .product.is-recap.is-entering .slider { transition: opacity 180ms ease; }
 }
 .recap__track {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: var(--w);
-  padding-top: calc(50cqh - 177.5 * var(--u));
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  height: 100cqh;
 }
 .recap__circles {
-  display: flex;
-  flex-direction: column;
-  gap: calc(100cqh - 355 * var(--u));         /* one circle per screen : centre to centre = screen height */
+  position: absolute;
+  inset: 0;
+  transition: opacity 180ms ease;
 }
-/* circle 355 Ø = the column, between the margins, image ×5.54 */
+/* The circle is a fixed mask; its image layers slide vertically through it. */
 .recap__circle {
+  position: absolute;
+  top: calc(50cqh - 177.5 * var(--u));
+  left: var(--m);
   width: calc(355 * var(--u));
   height: calc(355 * var(--u));
-  margin-left: var(--m);
+  margin: 0;
   border-radius: 50%;
+  overflow: hidden;
   background-color: var(--surface-paper);
+}
+.recap__detail {
+  position: absolute;
+  inset: 0;
   background-repeat: no-repeat;
-  scroll-snap-align: center;
-  scroll-snap-stop: always;
+  will-change: transform;
 }
 /* confirmation block : « Added to Cart » and the current price */
 .recap__end {
@@ -484,15 +493,21 @@ img { display: block; }
   align-items: flex-start;
   justify-content: center;
   width: var(--w);
+  position: absolute;
+  inset: 0;
   height: 100cqh;
-  margin-top: 0;
+  margin: 0;
   padding: 0 var(--m);
-  opacity: 0;
-  transition: opacity 180ms ease;
+  background: var(--surface-paper);
+  clip-path: inset(100% 0 0);
+  transition: clip-path var(--checkout-motion-duration, 900ms) linear;
 }
-.product.is-confirmed .recap__end { opacity: 1; }
-.recap__circles:empty + .recap__end { margin-top: 0; }
+.product.is-confirmed .recap__end { clip-path: inset(0); }
 .end__price { margin-top: var(--next-line); }
+@media (prefers-reduced-motion: reduce) {
+  .product.is-returning { transition: none; }
+  .recap__end { transition: none; }
+}
 
 .phone .view[hidden] { display: none !important; }
 .recap__end { color: inherit; }

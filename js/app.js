@@ -20,7 +20,7 @@ const BOOKS = [
 
 // slideshow : order of the files in « magazine_abimé/images »
 // slides/ = screen version, slides-full/ = full resolution (5160 px) for the zoom
-const SLIDES = ['01', '02', '03', '04', '05', '06', '07'];
+const SLIDES = ['02', '03', '04', '05', '06', '07'];
 
 // zones, per slide. x / y = centre, r = radius — all in fractions of the image width
 // (y is also a fraction of the image width, so circles stay round).
@@ -234,9 +234,12 @@ function paintSpot(el, s, size, zoom, fill) {
     fx = Math.min(Math.max(fx, r), 1 - r);
     fy = Math.min(Math.max(fy, r), s.ratio - r);
   }
+  const x = size / 2 - fx * W;
+  const y = size / 2 - fy * W;
   el.style.backgroundImage = `url(${s.full})`;
   el.style.backgroundSize = `${W}px ${W * s.ratio}px`;
-  el.style.backgroundPosition = `${size / 2 - fx * W}px ${size / 2 - fy * W}px`;
+  el.style.backgroundPosition = `${x}px ${y}px`;
+  return { x, y, height: W * s.ratio };
 }
 
 function animateLoupeToDot(img, h, dot, origin) {
@@ -269,7 +272,9 @@ function animateLoupeToDot(img, h, dot, origin) {
   ], { duration: 450, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
   animation.onfinish = () => {
     dot.style.opacity = '1';
-    clone.remove();
+    // Keep the flying loupe over the thumbnail while it fades in, so the
+    // two matching images overlap instead of briefly revealing the page.
+    setTimeout(() => clone.remove(), 150);
   };
   animation.oncancel = () => {
     dot.style.opacity = '1';
@@ -295,10 +300,11 @@ function capture(img, clientX, clientY) {
     if (dist > d.r) return;
     captured.add(key);
     const dot = document.createElement('span');
-    dot._spot = { full: img.getAttribute('src'), fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
+    const snapshotSource = decodedImages.has(img.dataset.full) ? img.dataset.full : img.getAttribute('src');
+    dot._spot = { full: snapshotSource, fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
     // same view as the loupe at release, scaled down from 200 to 50
     paintSpot(dot, dot._spot, THUMB * unit(), ZOOM * THUMB / LOUPE);
-    dot._zone = { full: img.getAttribute('src'), fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
+    dot._zone = { full: snapshotSource, fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
     dot.style.opacity = '0';
     found.appendChild(dot);
     animateLoupeToDot(img, h, dot, origin);
@@ -434,17 +440,13 @@ function show(view) {
   if (view !== 'recap' && checkoutPending) {
     cancelAnimationFrame(checkoutFrame);
     clearTimeout(checkoutTimer);
-    clearTimeout(entryTimer);
-    entryTimer = 0;
-    slider.classList.remove('is-fading');
     checkoutPending = false;
     checkoutZones = null;
     recapTrack.style.transform = 'translate3d(0, 0, 0)';
-    product.classList.remove('is-confirmed', 'is-returning', 'is-entering');
+    product.classList.remove('is-confirmed', 'is-returning');
   }
   if (view === 'product') {
-    product.classList.remove('is-confirmed', 'is-returning', 'is-entering');
-    slider.classList.remove('is-fading');
+    product.classList.remove('is-confirmed', 'is-returning');
   }
   const inProduct = ['product', 'recap'].includes(view);
   choice.hidden = view !== 'choice' && !enteringProductFromChoice;
@@ -456,8 +458,7 @@ function show(view) {
   if (view === 'catalog' && current === 'recap') {
     recapCircles.replaceChildren();
     clearSelection();
-    slider.classList.remove('is-fading');
-    product.classList.remove('is-confirmed', 'is-returning', 'is-entering');
+    product.classList.remove('is-confirmed', 'is-returning');
   }
   current = view;
 
@@ -512,7 +513,6 @@ const PRICE_STEP = { defect: -10, quality: +15 };
 let price = PRICE_START;
 
 const amount = $('#amount');
-const detailFeedback = $('#detail-feedback');
 const fmt = v => v.toFixed(2);                       // '95.00'
 // strip : [blank, 0–9, 0–9, 0–9] → a digit rests in the middle cycle (11 + d)
 const CELLS = [' ', ...'0123456789'.repeat(3)];
@@ -560,8 +560,8 @@ function renderPrice(v) {
 }
 
 let timers = [];
-let feedbackTimer = 0;
-let feedbackExitTimer = 0;
+let deltaTimer = 0;
+const priceChange = $('#price-change');
 // finish any running roll instantly (keeps fast successive finds clean)
 function settle() {
   timers.forEach(clearTimeout); timers = [];
@@ -600,33 +600,31 @@ function rollTo(v) {
   });
 }
 
-function clearDetailFeedback() {
-  clearTimeout(feedbackTimer);
-  clearTimeout(feedbackExitTimer);
-  detailFeedback.classList.remove('is-visible', 'is-exiting');
-  detailFeedback.textContent = '';
+function clearPriceChange() {
+  clearTimeout(deltaTimer);
+  priceChange.classList.remove('is-visible', 'is-exiting');
+  priceChange.textContent = '';
 }
 
-function showDetailFeedback(message) {
-  clearTimeout(feedbackTimer);
-  clearTimeout(feedbackExitTimer);
-  detailFeedback.textContent = message;
-  detailFeedback.classList.remove('is-exiting');
-  detailFeedback.classList.add('is-visible');
-  feedbackTimer = setTimeout(() => {
-    detailFeedback.classList.remove('is-visible');
-    detailFeedback.classList.add('is-exiting');
-    feedbackExitTimer = setTimeout(() => {
-      detailFeedback.classList.remove('is-exiting');
-      detailFeedback.textContent = '';
-    }, 220);
+function showPriceChange(change) {
+  clearTimeout(deltaTimer);
+  priceChange.textContent = `${change > 0 ? '+' : '–'}£${fmt(Math.abs(change))}`;
+  priceChange.classList.remove('is-exiting');
+  priceChange.classList.add('is-visible');
+  deltaTimer = setTimeout(() => {
+    priceChange.classList.remove('is-visible');
+    priceChange.classList.add('is-exiting');
+    deltaTimer = setTimeout(() => {
+      priceChange.classList.remove('is-exiting');
+      priceChange.textContent = '';
+    }, 420);
   }, 3220);
 }
 
 document.addEventListener('zonefound', e => {
   const next = Math.max(0, price + PRICE_STEP[e.detail.kind]);
   if (next !== price) {
-    showDetailFeedback(next > price ? 'Rare detail found' : 'Imperfection found');
+    showPriceChange(next - price);
     rollTo(next);
   }
 });
@@ -635,7 +633,7 @@ document.addEventListener('zonefound', e => {
 // A browser may restore this page from its back/forward cache. Clear temporary
 // inspection marks on navigation and restore the starting price on return.
 function clearSelection() {
-  clearDetailFeedback();
+  clearPriceChange();
   timers.forEach(clearTimeout);
   timers = [];
   captured.clear();
@@ -657,6 +655,7 @@ window.addEventListener('pageshow', event => {
 // (355 Ø, ×5.54, 20 apart, each stops on the screen axis), then « Add to cart » + current price.
 const BIG = 355;                     // circle = the column
 const BIG_ZOOM = 1968.16 / 355;      // InDesign page 4 ≈ ×5.54
+const CHECKOUT_SPEED = 0.9;           // shared CSS pixels per millisecond for the full checkout motion
 const recap = $('#recap');
 const recapTrack = $('#recap-track');
 const recapCircles = $('#recap-circles');
@@ -664,7 +663,6 @@ const checkoutStatus = $('#checkout-status');
 let checkoutPending = false;
 let checkoutFrame = 0;
 let checkoutTimer = 0;
-let entryTimer = 0;
 let checkoutZones = null;
 
 function getCheckoutZones() {
@@ -682,11 +680,25 @@ function getCheckoutZones() {
 function openRecap() {
   const zones = checkoutPending && checkoutZones ? checkoutZones : getCheckoutZones();
   const renderCircles = () => {
-    recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
-    [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
+    recapCircles.style.opacity = '1';
+    recapCircles.innerHTML = zones.length
+      ? `<div class="recap__circle">${zones.map(() => '<div class="recap__detail"></div>').join('')}</div>`
+      : '';
+    [...recapCircles.querySelectorAll('.recap__detail')].forEach((image, i) => {
+      image._basePosition = paintSpot(image, zones[i], BIG * unit(), BIG_ZOOM, true);
+      image.style.transform = i === 0 ? 'translate3d(0, 0, 0)' : `translate3d(0, ${BIG * unit()}px, 0)`;
+      if (i === 0) {
+        const distance = BIG * unit();
+        const roomDown = -image._basePosition.y;
+        const direction = roomDown >= distance ? 1 : -1;
+        image._entryDirection = direction;
+        image.style.backgroundPosition = `${image._basePosition.x}px ${image._basePosition.y + direction * distance}px`;
+      }
+    });
   };
   $('#end-price').textContent = `£${price.toFixed(2)}`;
   $('#end-label').textContent = 'Added to Cart';
+  recapCircles.style.opacity = '1';
   product.classList.remove('is-confirmed', 'is-returning');
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
 
@@ -702,27 +714,18 @@ function openRecap() {
     requestAnimationFrame(() => {
       if (!checkoutPending || current !== 'recap') return;
       animateCheckout(zones.length);
-      if (!zones.length || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        product.classList.remove('is-entering');
-        return;
-      }
-      entryTimer = setTimeout(() => {
-        slider.classList.add('is-fading');
-        entryTimer = setTimeout(() => {
-          product.classList.remove('is-entering');
-          slider.classList.remove('is-fading');
-          entryTimer = 0;
-        }, 180);
-      }, 280);
     });
   });
 }
 
 function animateCheckout(circleCount) {
-  const target = checkoutStatus.offsetTop;
-  // Slightly slow the circle sequence while keeping its ease-in-out curve.
-  const duration = circleCount ? Math.min(2800, Math.max(750, circleCount * 270)) : 0;
+  const detailDistance = BIG * unit();
+  const detailDuration = detailDistance / CHECKOUT_SPEED;
+  const duration = circleCount ? detailDuration * circleCount : 0;
+  const screenDistance = productEl.clientHeight || window.innerHeight;
+  product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
   const started = performance.now();
+  const fixedCircle = recapCircles.querySelector('.recap__circle');
 
   const finish = () => {
     checkoutFrame = 0;
@@ -731,22 +734,38 @@ function animateCheckout(circleCount) {
     product.classList.add('is-confirmed');
     checkoutTimer = setTimeout(() => {
       animateReturn();
-    }, 2000);
+    }, 3000);
   };
 
   if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    recapTrack.style.transform = `translate3d(0, -${target}px, 0)`;
     finish();
     return;
   }
 
+  if (fixedCircle) {
+    fixedCircle.animate([
+      { transform: `translate3d(0, ${screenDistance}px, 0)` },
+      { transform: 'translate3d(0, 0, 0)' },
+    ], { duration: screenDistance / CHECKOUT_SPEED, easing: 'linear', fill: 'forwards' });
+  }
+
   const tick = now => {
     const progress = Math.min(1, (now - started) / duration);
-    const eased = (1 - Math.cos(Math.PI * progress)) / 2;
-    recapTrack.style.transform = `translate3d(0, -${target * eased}px, 0)`;
+    const sequence = progress * circleCount;
+    const activeIndex = Math.min(circleCount - 1, Math.floor(sequence));
+    const localProgress = progress >= 1 ? 1 : sequence - activeIndex;
+    const travel = detailDistance;
+    [...recapCircles.querySelectorAll('.recap__detail')].forEach((image, i) => {
+      if (i === activeIndex && activeIndex === 0) {
+        image.style.backgroundPosition = `${image._basePosition.x}px ${image._basePosition.y + image._entryDirection * travel * (1 - localProgress)}px`;
+      } else if (i === activeIndex) {
+        image.style.transform = `translate3d(0, ${travel * (1 - localProgress)}px, 0)`;
+      } else if (i === activeIndex - 1) {
+        image.style.transform = `translate3d(0, ${-travel * localProgress}px, 0)`;
+      }
+    });
     if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
     else {
-      recapTrack.style.transform = `translate3d(0, -${target}px, 0)`;
       finish();
     }
   };
@@ -756,12 +775,14 @@ function animateCheckout(circleCount) {
 function animateReturn() {
   // Continue scrolling downward past the confirmation screen, revealing the
   // catalog underneath instead of replaying the circle sequence backwards.
+  const screenDistance = productEl.clientHeight || window.innerHeight;
+  product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
   product.classList.add('is-returning');
   checkoutTimer = setTimeout(() => {
     checkoutPending = false;
     checkoutZones = null;
     location.hash = '';
-  }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650);
+  }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : screenDistance / CHECKOUT_SPEED);
 }
 
 // ---------- add to cart → animated checkout → return to the catalog
@@ -771,7 +792,6 @@ $('#product-add').addEventListener('click', () => {
   document.querySelectorAll('.cart').forEach(c => { c.textContent = `Cart (${cart})`; });
   checkoutZones = getCheckoutZones();
   checkoutPending = true;
-  product.classList.add('is-entering');
   location.hash = 'recap';
 });
 
