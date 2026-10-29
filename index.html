@@ -14,6 +14,7 @@
     <main class="phone">
       <section class="view catalog" id="catalog" aria-label="Book catalog">
         <header class="header header--catalog">
+          <h1 class="sr-only" tabindex="-1">IDEA book catalog</h1>
           <div class="topbar">
             <a class="t" href="#catalog">IDEA</a>
             <span class="t cart">Cart (0)</span>
@@ -30,28 +31,41 @@
         </footer>
       </section>
 
-      <div class="choice" id="choice" hidden>
-        <div class="choice__band" role="group" aria-label="Choose book condition">
+      <div class="choice" id="choice" role="group" aria-label="Choose book condition" hidden>
+        <div class="choice__band">
           <button class="choice__btn" type="button" data-choice="new">
-            <span class="t">Buy new</span><span class="t muted price">£95.00</span>
+            <span class="t">Buy new</span>
+            <span class="t muted price">£95.00</span>
           </button>
           <button class="choice__btn" type="button" data-choice="vintage">
-            <span class="t">Buy vintage</span><span class="t muted price">£25.00</span>
+            <span class="t">Buy used</span>
+            <span class="t muted price">£25.00</span>
           </button>
         </div>
       </div>
 
-      <section class="view product" id="product" aria-label="Book details" hidden>
+      <section class="view product" id="product" aria-labelledby="product-title" hidden>
         <header class="header header--product">
-          <div class="topbar"><a class="t" href="#catalog">IDEA</a><span class="t cart">Cart (0)</span></div>
-          <p class="t product__title">Photo November 1983 N194</p>
-          <p class="t muted product__price">£25.00</p>
+          <div class="topbar">
+            <a class="t" href="#catalog">IDEA</a>
+            <span class="t cart">Cart (0)</span>
+          </div>
+          <h1 class="t product__title" id="product-title" tabindex="-1">Photo November 1983 N194</h1>
         </header>
         <div class="slider" id="slider" aria-label="Book photos"></div>
         <div class="loupe" id="loupe" aria-hidden="true" hidden></div>
         <div class="found" id="found" aria-label="Details you found"></div>
-        <p class="t product__cta">Add to cart</p>
-        <p class="t product__counter" id="counter" aria-live="polite">1/6</p>
+
+        <div class="recap" id="recap">
+          <div class="recap__circles" id="recap-circles" aria-hidden="true"></div>
+          <button class="recap__end" id="add" type="button">
+            <span class="t">Add to cart</span>
+            <span class="t muted end__price" id="end-price">£95.00</span>
+          </button>
+        </div>
+
+        <button class="t product__amount" id="amount" type="button" aria-live="polite">£95.00</button>
+        <p class="t product__counter" id="counter" aria-live="polite">1/7</p>
       </section>
     </main>
 

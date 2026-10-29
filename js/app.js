@@ -20,36 +20,37 @@ const BOOKS = [
 
 // slideshow : order of the files in « magazine_abimé/images »
 // slides/ = screen version, slides-full/ = full resolution (5160 px) for the zoom
-const SLIDES = ['01', '02', '03', '04', '05', '06'];
+const SLIDES = ['01', '02', '03', '04', '05', '06', '07'];
 
 // zones, per slide. x / y = centre, r = radius — all in fractions of the image width
 // (y is also a fraction of the image width, so circles stay round).
 // kind : 'defect' (red in Figma → price goes down) / 'quality' (green → price goes up)
 // From the Figma page « Défauts — zones ».
 const DEFECTS = {
-  '02': [ { kind: 'quality', x: 0.1376, y: 0.1029, r: 0.07 } ],
+  '02': [ { kind: 'defect',  x: 0.6587, y: 0.0850, r: 0.07 } ],   // image swapped 2 ↔ 6
   '03': [ { kind: 'defect',  x: 0.8765, y: 0.1695, r: 0.0859 },
           { kind: 'defect',  x: 0.7949, y: 0.4540, r: 0.07 },
           { kind: 'defect',  x: 0.1648, y: 0.1996, r: 0.07 } ],
-  '04': [ { kind: 'defect',  x: 0.9254, y: 0.0804, r: 0.07 },   // tear (zoom of the InDesign layout)
+  '04': [ { kind: 'quality', x: 0.8681, y: 0.0906, r: 0.1113 } ],
+  '05': [ { kind: 'defect',  x: 0.9254, y: 0.0804, r: 0.07 },   // tear (zoom of the InDesign layout)
           { kind: 'defect',  x: 0.3470, y: 0.3648, r: 0.07 },
           { kind: 'defect',  x: 0.7611, y: 0.3338, r: 0.07 },
           { kind: 'defect',  x: 0.8456, y: 0.2597, r: 0.07 } ],
-  '05': [ { kind: 'defect',  x: 0.6587, y: 0.0850, r: 0.07 } ],
-  '06': [ { kind: 'defect',  x: 0.0700, y: 0.6390, r: 0.07 },
+  '06': [ { kind: 'quality', x: 0.1376, y: 0.1029, r: 0.07 } ],   // image swapped 2 ↔ 6
+  '07': [ { kind: 'defect',  x: 0.0700, y: 0.6390, r: 0.07 },
           { kind: 'defect',  x: 0.7508, y: 0.3470, r: 0.07 } ],
 };
 
-const ZOOM = 4;          // loupe magnification (Figma zoom : 1403 / 355 ≈ ×4)
-const LOUPE = 200;       // loupe diameter (design px)
-const THUMB = 50;        // found-defect circle (design px)
+const ZOOM = 4;               // finger loupe magnification (Figma zoom : 1403 / 355 ≈ ×4)
+const LOUPE = 200;            // finger loupe diameter (design px)
+const THUMB = 50;             // found circle (design px)
 
 const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- catalog
 const grid = $('#grid');
 grid.innerHTML = BOOKS.map((b, i) => `
-  <button type="button" class="card" ${b.link ? `data-link="${b.link}"` : 'disabled aria-label="'+b.title+' (not available in this demo)"'}>
+  <button type="button" class="card" ${b.link ? `data-link="${b.link}"` : `disabled aria-label="${b.title} (not available in this demo)"`}>
     <img class="card__cover" src="assets/catalog/${b.slug}.jpg" alt="${b.title}"
          width="518" height="777" ${i > 3 ? 'loading="lazy"' : ''}>
     <div class="card__info">
@@ -79,7 +80,8 @@ const loupe = $('#loupe');
 const found = $('#found');
 const productEl = $('#product');
 const captured = new Set();
-const unit = () => productEl.clientWidth / 375;           // 1 design px in CSS px
+const phoneEl = document.querySelector('.phone');
+const unit = () => (productEl.clientWidth || phoneEl.clientWidth) / 375; // 1 design px in CSS px
 
 // preload full-resolution images
 SLIDES.forEach(n => { const i = new Image(); i.src = `assets/slides-full/${n}.jpg`; });
@@ -110,6 +112,19 @@ function showLoupe(img, clientX, clientY, lift) {
   paintZoom(loupe, img, h, size);
 }
 
+function paintSpot(el, s, size, zoom, fill) {
+  const W = 355 * unit() * zoom;                          // every slide image is 355 wide
+  let fx = s.fx, fy = s.fy;
+  if (fill) {                                             // keep the circle full of image (no white at the edges)
+    const r = size / 2 / W;
+    fx = Math.min(Math.max(fx, r), 1 - r);
+    fy = Math.min(Math.max(fy, r), s.ratio - r);
+  }
+  el.style.backgroundImage = `url(${s.full})`;
+  el.style.backgroundSize = `${W}px ${W * s.ratio}px`;
+  el.style.backgroundPosition = `${size / 2 - fx * W}px ${size / 2 - fy * W}px`;
+}
+
 function capture(img, clientX, clientY) {
   const h = hit(img, clientX, clientY);
   if (!h.inside) return;
@@ -121,12 +136,11 @@ function capture(img, clientX, clientY) {
     if (dist > d.r) return;
     captured.add(key);
     const dot = document.createElement('span');
+    dot._spot = { full: img.dataset.full, fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
     // same view as the loupe at release, scaled down from 200 to 50
-    const s = THUMB / LOUPE, W = h.r.width * ZOOM * s, size = THUMB * unit();
-    dot.style.backgroundImage = `url(${img.dataset.full})`;
-    dot.style.backgroundSize = `${W}px ${h.r.height * ZOOM * s}px`;
-    dot.style.backgroundPosition = `${size / 2 - h.fx * W}px ${size / 2 - h.fy * h.r.width * ZOOM * s}px`;
-    dot.dataset.kind = d.kind;                 // 'defect' / 'quality' → for the live price (next step)
+    paintSpot(dot, dot._spot, THUMB * unit(), ZOOM * THUMB / LOUPE);
+    dot.dataset.kind = d.kind;                 // 'defect' / 'quality'
+    dot._zone = { full: img.dataset.full, fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
     found.appendChild(dot);
     document.dispatchEvent(new CustomEvent('zonefound', { detail: { slide, index: k, kind: d.kind } }));
   });
@@ -140,7 +154,7 @@ function fitFound() {
   const height = productEl.clientHeight || window.innerHeight;
   const u = width / 375;
   const H = height / u;                             // screen height in design px
-  const bottom = H - 10 - 8.47 - 10;                            // caps of « 1/6 » − 10
+  const bottom = H - 10 - 0.726 * 35 - 10;                      // caps of the large price − 10
   const rows = Math.max(1, Math.floor((bottom - 56.75 + 5) / (THUMB + 5)));
   found.style.setProperty('--rows', rows);
 }
@@ -244,19 +258,25 @@ if (new URLSearchParams(location.search).has('zones')) {
 const choice = $('#choice');
 const product = $('#product');
 
+let current = 'catalog';
 function show(view) {
+  if (view === 'end') view = 'recap';
+  const inProduct = ['product', 'recap'].includes(view);
   choice.hidden = view !== 'choice';
-  product.hidden = view !== 'product';
+  product.hidden = !inProduct;
+  product.classList.toggle('is-recap', view === 'recap');
   document.body.classList.toggle('locked', view !== 'catalog');
-  if (view === 'product') { slider.scrollLeft = 0; updateCounter(); }
+  if (view === 'product' && current !== 'recap') { slider.scrollLeft = 0; updateCounter(); }
+  if (view === 'recap') openRecap();
+  current = view;
 }
 
 function route() {
   const v = location.hash.replace('#', '');
-  show(['choice', 'product'].includes(v) ? v : 'catalog');
+  show(['choice', 'product', 'recap', 'end'].includes(v) ? v : 'catalog');
 }
 window.addEventListener('hashchange', route);
-route();
+queueMicrotask(route);                                   // after the whole script is loaded
 
 // catalog → choice
 grid.addEventListener('click', e => {
@@ -272,6 +292,131 @@ choice.addEventListener('click', e => {
     return; // « Buy new » : no destination yet (same as Figma)
   }
   if (!e.target.closest('.choice__band')) history.back();
+});
+
+
+// ---------- live price : starts at £95.00, defect −£10.00, quality +£15.00
+// (all 12 zones found → £25.00 = the « Buy used » price)
+const PRICE_START = 95;
+const PRICE_STEP = { defect: -10, quality: +15 };
+let price = PRICE_START;
+
+const amount = $('#amount');
+const fmt = v => v.toFixed(2);                       // '95.00'
+// strip : [blank, 0–9, 0–9, 0–9] → a digit rests in the middle cycle (11 + d)
+const CELLS = [' ', ...'0123456789'.repeat(3)];
+const rest = d => 11 + d;
+
+// digit widths in em (independent of the screen size and of the view being hidden)
+const widths = {};
+function measure() {
+  const m = document.createElement('span');
+  m.className = 't product__amount';
+  m.style.cssText = 'position:absolute;visibility:hidden;left:-9999px;top:0;bottom:auto';
+  m.style.setProperty('--u', String(unit()));
+  document.body.appendChild(m);
+  const fs = parseFloat(getComputedStyle(m).fontSize);
+  for (const ch of '0123456789') { m.textContent = ch; widths[ch] = m.getBoundingClientRect().width / fs; }
+  m.remove();
+}
+const w = ch => ch === ' ' ? '0em' : `${widths[ch]}em`;
+
+function column(ch) {
+  const col = document.createElement('span');
+  col.className = 'roll';
+  col.innerHTML = `<span class="roll__ghost">${ch === ' ' ? '' : ch}</span><span class="roll__strip">${CELLS.map(c => `<span>${c === ' ' ? '&nbsp;' : c}</span>`).join('')}</span>`;
+  col._strip = col.lastChild;
+  col._digit = ch;
+  col._pos = ch === ' ' ? 0 : rest(+ch);
+  col.style.width = w(ch);
+  place(col, false);
+  return col;
+}
+// position in CSS units (one cell = one line = 42 design px) : correct even while the view is hidden
+function place(col, animate) {
+  const s = col._strip;
+  s.classList.toggle('is-moving', animate);
+  if (!animate) void s.offsetWidth;                  // apply the jump without transition
+  s.style.transform = `translateY(calc(${-col._pos} * 42 * var(--u)))`;
+}
+
+// static render : £ + one column per digit + .
+function renderPrice(v) {
+  measure();
+  amount.textContent = '£';
+  for (const ch of fmt(v)) amount.appendChild(ch === '.' ? document.createTextNode('.') : column(ch));
+  amount.setAttribute('aria-label', `£${fmt(v)}`);
+}
+
+let timers = [];
+// finish any running roll instantly (keeps fast successive finds clean)
+function settle() {
+  timers.forEach(clearTimeout); timers = [];
+  amount.querySelectorAll('.roll').forEach(col => {
+    if (col._digit === ' ') { col.remove(); return; }
+    col._pos = rest(+col._digit); place(col, false);
+  });
+}
+
+function rollTo(v) {
+  settle();
+  const from = fmt(price), to = fmt(v), up = v > price;
+  price = v;
+  amount.setAttribute('aria-label', `£${to}`);
+  // align on the right (95 → 110 adds a column on the left, 110 → 95 removes it)
+  const len = Math.max(from.length, to.length);
+  const A = from.padStart(len, ' ').replace('.', ''), B = to.padStart(len, ' ').replace('.', '');
+  const cols = [...amount.querySelectorAll('.roll')];
+  while (cols.length < A.length) { const c = column(' '); amount.insertBefore(c, amount.childNodes[1]); cols.unshift(c); }
+  cols.forEach((col, i) => {
+    const o = A[i], n = B[i];
+    if (o === n) return;
+    timers.push(setTimeout(() => {
+      if (n === ' ') col._pos = 0;                                  // goes away : rolls down to the blank cell
+      else if (o === ' ') col._pos = 1 + +n;                         // appears : rolls up from the blank cell
+      else col._pos += up ? (+n - +o + 10) % 10 : -((+o - +n + 10) % 10);
+      col._digit = n;
+      col.firstChild.textContent = n === ' ' ? '' : n;
+      col.style.width = w(n);
+      place(col, true);
+      timers.push(setTimeout(() => {                                  // end : back to the middle cycle
+        if (col._digit !== n) return;
+        if (n === ' ') col.remove(); else { col._pos = rest(+n); place(col, false); }
+      }, 520));
+    }, i * 40));                                                      // slight left → right stagger
+  });
+}
+
+document.addEventListener('zonefound', e => {
+  const next = Math.max(0, price + PRICE_STEP[e.detail.kind]);
+  if (next !== price) rollTo(next);
+});
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => renderPrice(price));
+
+// ---------- recap : tap the price → the found zones cross the screen, circle after circle
+// (355 Ø, ×5.54, 20 apart, each stops on the screen axis), then « Add to cart » + current price.
+const BIG = 355;                     // circle = the column
+const BIG_ZOOM = 1968.16 / 355;      // InDesign page 4 ≈ ×5.54
+const recap = $('#recap');
+const recapCircles = $('#recap-circles');
+
+$('#amount').addEventListener('click', () => { location.hash = 'recap'; });
+
+function openRecap() {
+  const zones = [...found.children].map(d => d._zone)
+    .sort((a, b) => a.slide.localeCompare(b.slide) || a.k - b.k);          // order of the images
+  recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
+  [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
+  $('#end-price').textContent = `£${price.toFixed(2)}`;
+  recap.scrollTop = 0;
+}
+
+// ---------- add to cart → Cart (1), back to the catalog
+let cart = 0;
+$('#add').addEventListener('click', () => {
+  cart += 1;
+  document.querySelectorAll('.cart').forEach(c => { c.textContent = `Cart (${cart})`; });
+  location.hash = '';
 });
 
 })();

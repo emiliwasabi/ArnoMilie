@@ -12,14 +12,16 @@
   color: #000;
   font-family: "Unica 77", "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
-
 }
 
 .phone > * {
   font-size: var(--size);
   line-height: var(--lead);
   --u: calc(min(100cqw, 430px) / 375);
-    /* tokens = Figma variables */
+  /* 1 design px. The design is 375 wide; capped at 430 px on desktop */
+
+
+  /* tokens = Figma variables */
   --text-primary: #000;
   --text-secondary: #7f7f7f;   /* InDesign: 50 % tint of black */
   --surface-paper: #fff;
@@ -51,8 +53,6 @@ body {
   background: #fff;
   color: #000;
   font-family: "Unica 77", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  letter-spacing: 0;
-  -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
 body.locked { overflow: hidden; }
@@ -67,6 +67,8 @@ img { display: block; }
    so every spacing is measured exactly like in Figma            */
 .t {
   display: block;
+  font-size: var(--size);
+  line-height: var(--lead);
   text-box: trim-both cap alphabetic;
 }
 @supports not (text-box: trim-both cap alphabetic) {
@@ -75,7 +77,7 @@ img { display: block; }
 }
 .muted { color: var(--text-secondary); }
 
-/* ---------- catalog scrolls inside the phone frame */
+/* The catalog scrolls inside the phone frame. */
 .catalog { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; }
 
 /* ---------- header (catalog : 56.75 high, fixed) */
@@ -119,6 +121,7 @@ img { display: block; }
 }
 .card { display: block; width: var(--col); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; appearance: none; }
 .card:disabled { opacity: 1; cursor: default; }
+.card:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 .card__cover {
   width: var(--col);
   height: calc(259 * var(--u));
@@ -130,7 +133,6 @@ img { display: block; }
 }
 .card__info .price { margin-top: var(--next-line); }
 .card[data-link] { cursor: pointer; }
-.card:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 
 /* ---------- footer (10 + ascent / 14 / 10) */
 .footer {
@@ -226,7 +228,7 @@ img { display: block; }
   touch-action: pan-x;
 }
 
-/* loupe : 200 Ø (same as the Figma zoom circle), magnification ×4 */
+/* finger loupe : 200 Ø, magnification ×4, above the finger */
 .loupe {
   position: absolute;
   width: calc(200 * var(--u));
@@ -238,11 +240,12 @@ img { display: block; }
   pointer-events: none;
   z-index: 20;
 }
+
 .slider.is-zooming { overflow-x: hidden; }
 
 /* defects found : 50 Ø, 5 apart, right margin, under Cart (0) (Figma : x 315, y 56.75) */
 /* the column goes down the whole page, as long as there is room
-   (stops 10 above the caps of the bottom line « 1/6 ») — rows computed in app.js.
+   (stops 10 above the caps of the large price, the bottom block) — rows computed in app.js.
    No more room → new column on the left, 5 apart, starting again at the top */
 .found {
   position: absolute;
@@ -275,13 +278,106 @@ img { display: block; }
 }
 
 /* bottom line : baseline 10 from the bottom */
-.product__cta,
+.product__amount,
 .product__counter {
   position: absolute;
   bottom: var(--m);
   z-index: 2;
 }
-.product__cta { left: var(--m); }
+/* price : 105 pt / auto 126 pt → 35 / 42, same baseline as the counter */
+.product__amount {
+  left: var(--m);
+  font-size: calc(35 * var(--u));
+  line-height: calc(42 * var(--u));
+  min-height: 44px;
+}
+@supports not (text-box: trim-both cap alphabetic) {
+  .product__amount { margin-top: calc(-9.08 * var(--u)); margin-bottom: calc(-7.51 * var(--u)); }
+}
+
+/* rolling digits (like Revolut) : each digit is a window one line high,
+   a vertical strip of digits slides behind it. The typography doesn't change. */
+.roll {
+  display: inline-block;
+  position: relative;
+  height: calc(42 * var(--u));               /* one line */
+  clip-path: inset(0);                       /* clip without changing the baseline */
+  vertical-align: baseline;
+  transition: width .5s cubic-bezier(.2, .7, .2, 1);
+  overflow: visible;
+}
+.roll__ghost { visibility: hidden; }          /* gives the line its baseline */
+.roll__strip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+.roll__strip span { display: block; height: calc(42 * var(--u)); }
+.roll__strip.is-moving { transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .roll, .roll__strip.is-moving { transition: none; }
+}
 .product__counter { right: var(--m); text-align: right; }
 
+
+/* ---------- 4 — recap (tap on the price) : circles cross the screen */
+.product__amount { cursor: pointer; }
+.recap { display: none; }
+.product.is-recap .slider,
+.product.is-recap .found,
+.product.is-recap .product__amount,
+.product.is-recap .product__counter { display: none; }
+
+.product.is-recap .recap {
+  display: block;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* first circle and final block stop on the screen axis (406 / 812) */
+  padding: calc(50cqh - 177.5 * var(--u)) 0 calc(50cqh - 21.375 * var(--u));
+  z-index: 11;                                /* above the header (10) : circles pass over it */
+}
+.recap::-webkit-scrollbar { display: none; }
+.recap__circles {
+  display: flex;
+  flex-direction: column;
+  gap: calc(100cqh - 355 * var(--u));         /* one circle per screen : centre to centre = screen height */
+}
+/* circle 355 Ø = the column, between the margins, image ×5.54 */
+.recap__circle {
+  width: calc(355 * var(--u));
+  height: calc(355 * var(--u));
+  margin-left: var(--m);
+  border-radius: 50%;
+  background-color: var(--surface-paper);
+  background-repeat: no-repeat;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+/* final block : « Add to cart » / price, like the text of the 2C band (42.75) */
+.recap__end {
+  display: flex;                              /* a button centres its content : force top / left */
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: var(--w);
+  height: max(calc(42.75 * var(--u)), 44px);
+  margin-top: calc(100cqh - 198.875 * var(--u)); /* alone on its screen too (177.5 + 21.375) */
+  padding: var(--cap-top) var(--m) 0;
+  scroll-snap-align: center;
+}
+.recap__circles:empty + .recap__end { margin-top: 0; }
+.end__price { margin-top: var(--next-line); }
+
 .phone .view[hidden] { display: none !important; }
+.recap__end { appearance: none; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.product__amount { appearance: none; border: 0; background: none; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
