@@ -91,17 +91,36 @@ const captured = new Set();
 const phoneEl = document.querySelector('.phone');
 const unit = () => (productEl.clientWidth || phoneEl.clientWidth) / 375; // 1 design px in CSS px
 
-// Preload every image used by the catalog and the product experience.
+// Preload the images used by the catalog, loupe and checkout circles.
+const imagePreloads = new Map();
+function preloadImage(src, priority = 'low') {
+  if (imagePreloads.has(src)) return imagePreloads.get(src);
+  const image = new Image();
+  image.decoding = 'async';
+  image.fetchPriority = priority;
+  const loaded = new Promise(resolve => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      const decoded = image.decode ? image.decode().catch(() => {}) : Promise.resolve();
+      decoded.then(() => resolve(image));
+    };
+    image.onload = finish;
+    image.onerror = () => resolve(null);
+    image.src = src;
+    if (image.complete && image.naturalWidth) finish();
+  });
+  imagePreloads.set(src, loaded);
+  return loaded;
+}
+const recapImageSources = SLIDES.map(n => `assets/slides/${n}.jpg`);
+const recapImagesReady = Promise.all(recapImageSources.map(src => preloadImage(src, 'high')));
 const preloadImages = [
   ...BOOKS.map(book => `assets/catalog/${book.slug}.jpg`),
   ...SLIDES.flatMap(n => [`assets/slides/${n}.jpg`, `assets/slides-full/${n}.jpg`]),
 ];
-preloadImages.forEach(src => {
-  const image = new Image();
-  image.decoding = 'async';
-  image.fetchPriority = 'low';
-  image.src = src;
-});
+preloadImages.forEach(src => preloadImage(src, recapImageSources.includes(src) ? 'high' : 'low'));
 
 function hit(img, clientX, clientY) {
   const r = img.getBoundingClientRect();
@@ -199,7 +218,7 @@ function capture(img, clientX, clientY) {
     dot._spot = { full: img.dataset.full, fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
     // same view as the loupe at release, scaled down from 200 to 50
     paintSpot(dot, dot._spot, THUMB * unit(), ZOOM * THUMB / LOUPE);
-    dot._zone = { full: img.dataset.full, fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
+    dot._zone = { full: img.getAttribute('src'), fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
     dot.style.opacity = '0';
     found.appendChild(dot);
     animateLoupeToDot(img, h, dot, origin);
@@ -579,27 +598,40 @@ function getCheckoutZones() {
 
 function openRecap() {
   const zones = checkoutPending && checkoutZones ? checkoutZones : getCheckoutZones();
-  recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
-  [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
+  const renderCircles = () => {
+    recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
+    [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
+  };
   $('#end-price').textContent = `£${price.toFixed(2)}`;
   $('#end-label').textContent = 'Added to Cart';
   product.classList.remove('is-confirmed', 'is-returning');
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
-  if (checkoutPending) requestAnimationFrame(() => {
+
+  if (!checkoutPending) {
+    renderCircles();
+    return;
+  }
+  recapCircles.replaceChildren();
+  const imagesReady = zones.length ? recapImagesReady : Promise.resolve();
+  imagesReady.then(() => {
     if (!checkoutPending || current !== 'recap') return;
-    animateCheckout(zones.length);
-    if (!zones.length || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      product.classList.remove('is-entering');
-      return;
-    }
-    entryTimer = setTimeout(() => {
-      slider.classList.add('is-fading');
-      entryTimer = setTimeout(() => {
+    renderCircles();
+    requestAnimationFrame(() => {
+      if (!checkoutPending || current !== 'recap') return;
+      animateCheckout(zones.length);
+      if (!zones.length || matchMedia('(prefers-reduced-motion: reduce)').matches) {
         product.classList.remove('is-entering');
-        slider.classList.remove('is-fading');
-        entryTimer = 0;
-      }, 180);
-    }, 280);
+        return;
+      }
+      entryTimer = setTimeout(() => {
+        slider.classList.add('is-fading');
+        entryTimer = setTimeout(() => {
+          product.classList.remove('is-entering');
+          slider.classList.remove('is-fading');
+          entryTimer = 0;
+        }, 180);
+      }, 280);
+    });
   });
 }
 
