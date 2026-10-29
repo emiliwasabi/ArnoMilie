@@ -489,8 +489,8 @@ function animateCheckout(circleCount) {
 
   const tick = now => {
     const progress = Math.min(1, (now - started) / duration);
-    const easedIn = Math.pow(progress, 2.5);
-    const easedOut = Math.pow(1 - progress, 2.5);
+    const easedIn = Math.pow(progress, 1.8);
+    const easedOut = Math.pow(1 - progress, 1.8);
     const eased = easedIn / (easedIn + easedOut);
     recapTrack.style.transform = `translate3d(0, -${target * eased}px, 0)`;
     if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
