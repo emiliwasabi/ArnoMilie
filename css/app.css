@@ -503,9 +503,13 @@ img { display: block; }
   padding: 0 var(--m);
   background: var(--surface-paper);
   clip-path: inset(100% 0 0);
-  transition: clip-path var(--checkout-motion-duration, 900ms) linear;
+  transition: none;
 }
 .product.is-confirmed .recap__end { clip-path: inset(0); }
+#end-label {
+  font-size: calc(18 * var(--u));
+  line-height: calc(22 * var(--u));
+}
 .end__price { margin-top: var(--next-line); }
 @media (prefers-reduced-motion: reduce) {
   .product.is-returning { transition: none; }

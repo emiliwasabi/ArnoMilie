@@ -440,22 +440,14 @@ function show(view) {
   if (view !== 'recap' && checkoutPending) {
     cancelAnimationFrame(checkoutFrame);
     clearTimeout(checkoutTimer);
-    if (checkoutSliderExit) {
-      checkoutSliderExit.cancel();
-      checkoutSliderExit = null;
-    }
-    slider.style.transform = '';
+    slider.style.visibility = '';
     checkoutPending = false;
     checkoutZones = null;
     recapTrack.style.transform = 'translate3d(0, 0, 0)';
     product.classList.remove('is-confirmed', 'is-returning');
   }
   if (view === 'product') {
-    if (checkoutSliderExit) {
-      checkoutSliderExit.cancel();
-      checkoutSliderExit = null;
-    }
-    slider.style.transform = '';
+    slider.style.visibility = '';
     product.classList.remove('is-confirmed', 'is-returning');
   }
   const inProduct = ['product', 'recap'].includes(view);
@@ -466,11 +458,7 @@ function show(view) {
   if (view === 'product' && current !== 'recap') { slider.scrollLeft = 0; updateCounter(); }
   if (view === 'recap') openRecap();
   if (view === 'catalog' && current === 'recap') {
-    if (checkoutSliderExit) {
-      checkoutSliderExit.cancel();
-      checkoutSliderExit = null;
-    }
-    slider.style.transform = '';
+    slider.style.visibility = '';
     recapCircles.replaceChildren();
     clearSelection();
     product.classList.remove('is-confirmed', 'is-returning');
@@ -688,7 +676,6 @@ let checkoutPending = false;
 let checkoutFrame = 0;
 let checkoutTimer = 0;
 let checkoutZones = null;
-let checkoutSliderExit = null;
 
 function getCheckoutZones() {
   const currentIndex = Math.max(0, Math.min(SLIDES.length - 1,
@@ -709,16 +696,10 @@ function openRecap() {
     recapCircles.innerHTML = zones.length
       ? `<div class="recap__circle">${zones.map(() => '<div class="recap__detail"></div>').join('')}</div>`
       : '';
-    const distance = Math.min(BIG * unit(), productEl.clientHeight || window.innerHeight);
     [...recapCircles.querySelectorAll('.recap__detail')].forEach((image, i) => {
       image._basePosition = paintSpot(image, zones[i], BIG * unit(), BIG_ZOOM, true);
-      image.style.transform = i === 0 ? 'translate3d(0, 0, 0)' : `translate3d(0, ${distance}px, 0)`;
-      if (i === 0) {
-        const roomDown = -image._basePosition.y;
-        const direction = roomDown >= distance ? 1 : -1;
-        image._entryDirection = direction;
-        image.style.backgroundPosition = `${image._basePosition.x}px ${image._basePosition.y + direction * distance}px`;
-      }
+      image.style.transform = 'translate3d(0, 0, 0)';
+      image.style.visibility = 'hidden';
     });
   };
   $('#end-price').textContent = `£${price.toFixed(2)}`;
@@ -745,12 +726,13 @@ function openRecap() {
 
 function animateCheckout(circleCount) {
   const screenDistance = productEl.clientHeight || window.innerHeight;
-  const detailDistance = Math.min(BIG * unit(), screenDistance);
-  const detailDuration = detailDistance / CHECKOUT_SPEED;
-  const duration = circleCount ? detailDuration * circleCount : 0;
+  const entryDuration = screenDistance / CHECKOUT_SPEED;
+  const flashDuration = 280;
+  const duration = circleCount ? entryDuration + flashDuration * circleCount : 0;
   product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
   const started = performance.now();
   const fixedCircle = recapCircles.querySelector('.recap__circle');
+  const details = [...recapCircles.querySelectorAll('.recap__detail')];
 
   const finish = () => {
     checkoutFrame = 0;
@@ -762,7 +744,13 @@ function animateCheckout(circleCount) {
     }, 2500);
   };
 
-  if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!duration) {
+    finish();
+    return;
+  }
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (details.length) details[details.length - 1].style.visibility = 'visible';
     finish();
     return;
   }
@@ -772,37 +760,21 @@ function animateCheckout(circleCount) {
       { transform: `translate3d(0, ${screenDistance}px, 0)` },
       { transform: 'translate3d(0, 0, 0)' },
     ], { duration: screenDistance / CHECKOUT_SPEED, easing: 'linear', fill: 'forwards' });
-    checkoutSliderExit?.cancel();
-    checkoutSliderExit = slider.animate([
-      { transform: 'translate3d(0, 0, 0)' },
-      { transform: `translate3d(0, -${screenDistance}px, 0)` },
-    ], { duration: screenDistance / CHECKOUT_SPEED, easing: 'linear', fill: 'forwards' });
-    checkoutSliderExit.onfinish = () => {
-      slider.style.transform = `translate3d(0, -${screenDistance}px, 0)`;
-      checkoutSliderExit.cancel();
-      checkoutSliderExit = null;
-    };
   }
 
+  let previousIndex = -1;
   const tick = now => {
-    const progress = Math.min(1, (now - started) / duration);
-    const sequence = progress * circleCount;
-    const activeIndex = Math.min(circleCount - 1, Math.floor(sequence));
-    const localProgress = progress >= 1 ? 1 : sequence - activeIndex;
-    const travel = detailDistance;
-    [...recapCircles.querySelectorAll('.recap__detail')].forEach((image, i) => {
-      if (i === activeIndex && activeIndex === 0) {
-        image.style.backgroundPosition = `${image._basePosition.x}px ${image._basePosition.y + image._entryDirection * travel * (1 - localProgress)}px`;
-      } else if (i === activeIndex) {
-        image.style.transform = `translate3d(0, ${travel * (1 - localProgress)}px, 0)`;
-      } else if (i === activeIndex - 1) {
-        image.style.transform = `translate3d(0, ${-travel * localProgress}px, 0)`;
+    const elapsed = now - started;
+    if (elapsed >= entryDuration) {
+      const activeIndex = Math.min(circleCount - 1, Math.floor((elapsed - entryDuration) / flashDuration));
+      if (activeIndex !== previousIndex) {
+        if (previousIndex >= 0) details[previousIndex].style.visibility = 'hidden';
+        details[activeIndex].style.visibility = 'visible';
+        previousIndex = activeIndex;
       }
-    });
-    if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
-    else {
-      finish();
     }
+    if (elapsed < duration) checkoutFrame = requestAnimationFrame(tick);
+    else finish();
   };
   checkoutFrame = requestAnimationFrame(tick);
 }
@@ -825,6 +797,7 @@ let cart = 0;
 $('#product-add').addEventListener('click', () => {
   cart += 1;
   document.querySelectorAll('.cart').forEach(c => { c.textContent = `Cart (${cart})`; });
+  slider.style.visibility = 'hidden';
   checkoutZones = getCheckoutZones();
   checkoutPending = true;
   location.hash = 'recap';
