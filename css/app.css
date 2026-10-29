@@ -53,6 +53,13 @@
   --cap-top: calc(10.28 * var(--u)); /* 10 + ascent 8.75 − cap 8.47 : top of the caps */
   --next-line: calc(5.53 * var(--u));/* 14 − cap : baseline → caps of next line */
   --row-gap: calc(20 * var(--u));    /* last baseline → next image (2 × 10) */
+
+  /* motion : one curve for every eased movement (pages, digits, feedback) */
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --feedback-in: 250ms;              /* label + colour of the price : in */
+  --feedback-out: 600ms;             /* label + colour of the price : out, together */
+  --price-down: #743ea7;             /* violet while the price goes down */
+  --price-up: #00ad0b;               /* green while the price goes up */
 }
 
 .phone * {
@@ -209,12 +216,17 @@ img { display: block; }
   left: var(--m);
   font-weight: 400;
 }
+/* block = cover 259 + 10.28 + 8.47 + 5.53 + 8.47 + 10 under the last baseline = 301.75,
+   centred on the screen axis (Figma « 2 — Choice / V1 » : 406 on 812), whatever the phone height */
 .choice__grid {
+  position: absolute;
+  top: 50%;
+  left: var(--m);
+  transform: translateY(-50%);
   display: grid;
   grid-template-columns: var(--col) var(--col);
-  gap: var(--m);
+  column-gap: var(--m);
   align-items: start;
-  padding: 31cqh var(--m) var(--m);
 }
 .choice__card {
   display: block;
@@ -233,7 +245,8 @@ img { display: block; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding-top: var(--cap-top);
+  padding-top: var(--cap-top);               /* image → caps : 10.28 */
+  padding-bottom: var(--m);                  /* 10 under the last baseline */
 }
 .choice__info .price { margin-top: var(--next-line); }
 
@@ -259,7 +272,7 @@ img { display: block; }
   transform: translate(-50%, 100%);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .choice, .product { transition: transform 650ms cubic-bezier(.2, .7, .2, 1); }
+  .choice, .product { transition: transform 650ms var(--ease); }
 }
 .header--product { position: absolute; transform: none; left: 0; }
 .product__title {
@@ -268,28 +281,28 @@ img { display: block; }
   left: var(--m);
   font-weight: 400;
 }
-.product__delta {
+.product__delta {                           /* « imperfection found » / « collection item found » (Figma « …qualité_liuui ») */
   position: absolute;
-  bottom: calc(var(--m) + 36 * var(--u));
+  bottom: calc(var(--m) + 36.59 * var(--u)); /* baseline 765 on 812, as in Figma */
   left: var(--m);
   z-index: 2;
   margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--size);
-  line-height: var(--lead);
+  color: var(--text-primary);
   opacity: 0;
-  transform: translateY(calc(10 * var(--u)));
+  transform: translateY(calc(4 * var(--u)));
   pointer-events: none;
 }
 .product__delta.is-visible { opacity: 1; transform: translateY(0); }
-.product__delta.is-exiting { opacity: 0; transform: translateY(calc(18 * var(--u))); }
-.product__amount.is-price-up,
-.product__delta.is-price-up { color: #00AD0B; }
-.product__amount.is-price-down,
-.product__delta.is-price-down { color: #743EA7; }
+.product__delta.is-exiting { opacity: 0; transform: translateY(0); }
+/* the large price is violet while it goes down, green while it goes up ;
+   when the digits stop, the colour and the label leave together */
+.product__amount.is-price-down { color: var(--price-down); }
+.product__amount.is-price-up   { color: var(--price-up); }
 @media (prefers-reduced-motion: no-preference) {
-  .product__delta { transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .7, .2, 1), color 180ms ease; }
-  .product__amount { transition: color 180ms ease; }
+  .product__delta { transition: opacity var(--feedback-out) var(--ease), transform var(--feedback-out) var(--ease); }
+  .product__delta.is-visible { transition-duration: var(--feedback-in); }
+  .product__amount { transition: color var(--feedback-out) var(--ease); }
+  .product__amount.is-price-up, .product__amount.is-price-down { transition-duration: var(--feedback-in); }
 }
 .product__price {
   position: absolute;
@@ -412,7 +425,7 @@ img { display: block; }
   height: calc(42 * var(--u));               /* one line */
   clip-path: inset(0);                       /* clip without changing the baseline */
   vertical-align: baseline;
-  transition: width .5s cubic-bezier(.2, .7, .2, 1);
+  transition: width .5s var(--ease);
   overflow: visible;
 }
 .roll__ghost { visibility: hidden; }          /* gives the line its baseline */
@@ -426,15 +439,23 @@ img { display: block; }
 }
 .roll__strip span { display: block; height: calc(42 * var(--u)); }
 .roll__strip span:nth-child(10n + 11) { position: relative; top: calc(1 * var(--u)); }
-.roll__strip.is-moving { transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
+.roll__strip.is-moving { transition: transform .5s var(--ease); }
 @media (prefers-reduced-motion: reduce) {
   .roll, .roll__strip.is-moving, .product { transition: none; }
 }
 .product__add {
-  right: var(--m);
+  right: var(--m);                           /* same baseline as the large price (Figma : 802) */
   display: block;
   padding: 0;
   white-space: nowrap;
+}
+.product__add::before {                      /* invisible 44 px tap area, the text stays on the baseline */
+  content: '';
+  position: absolute;
+  right: calc(-1 * var(--m));
+  bottom: calc(-1 * var(--m));
+  width: max(100% + 2 * var(--m), 44px);
+  height: 44px;
 }
 .product__counter {
   right: var(--m);
@@ -489,7 +510,7 @@ img { display: block; }
   background-repeat: no-repeat;
   will-change: transform;
 }
-/* confirmation block : « Added to Cart » and the current price */
+/* confirmation block : « Added to cart », left margin, centred on the screen axis */
 .recap__end {
   display: flex;
   flex-direction: column;
@@ -506,11 +527,13 @@ img { display: block; }
   transition: none;
 }
 .product.is-confirmed .recap__end { clip-path: inset(0); }
-#end-label {
-  font-size: calc(18 * var(--u));
-  line-height: calc(22 * var(--u));
+#end-label {                                /* « Added to cart » : half of IDEA/Price (35 / 42 ÷ 2) */
+  font-size: calc(17.5 * var(--u));
+  line-height: calc(21 * var(--u));
 }
-.end__price { margin-top: var(--next-line); }
+@supports not (text-box: trim-both cap alphabetic) {
+  #end-label { margin-top: calc(-4.54 * var(--u)); margin-bottom: calc(-3.755 * var(--u)); }
+}
 @media (prefers-reduced-motion: reduce) {
   .product.is-returning { transition: none; }
   .recap__end { transition: none; }

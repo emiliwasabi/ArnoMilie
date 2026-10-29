@@ -1,7 +1,7 @@
 (function () {
 // IDEA — prototype
 // Flow (same as the Figma prototype) :
-// catalog → tap « Photo Nº 194 – Novembre 1983 » → choice → « Buy used » → product slideshow
+// catalog → tap « Photo Nº\u00A0194 – Novembre 1983 » → choice → « Buy used » → product slideshow
 
 const BOOKS = [
   { slug: 'tulsa',    title: 'Larry Clark Tulsa 1st Ed',          price: '£400.00' },
@@ -10,7 +10,7 @@ const BOOKS = [
   { slug: 'teller',   title: 'Juergen Teller Go-Sees',            price: '£550.00' },
   { slug: 'lostboys', title: 'Lost Boys A Life In Tunnels',       price: '£325.00' },
   { slug: 'ibiza',    title: 'Las Chicas de Ibiza',               price: '£350.00' },
-  { slug: 'photo',    title: 'Photo Nº 194 – Novembre 1983',      price: '£280.00', link: 'choice' },
+  { slug: 'photo',    title: 'Photo Nº\u00A0194 – Novembre 1983',      price: '£280.00', link: 'choice' },
   { slug: 'edo',      title: 'Edo Bertoglio New York Polaroids',  price: '£400.00' },
   { slug: 'cocaine',  title: 'Cocaine Calendar 1980',             price: '£250.00' },
   { slug: 'dicaprio', title: 'Leonardo DiCaprio Romantic Hero',   price: '£65.00'  },
@@ -64,7 +64,7 @@ const slider = $('#slider');
 slider.innerHTML = SLIDES.map((n, i) => `
   <div class="slide" data-n="${n}">
     <img src="assets/slides/${n}.jpg" data-full="assets/slides-full/${n}.jpg"
-         alt="Photo Nº 194 – Novembre 1983 — ${i + 1}/${SLIDES.length}" draggable="false"
+         alt="Photo Nº\u00A0194 – Novembre 1983 — ${i + 1}/${SLIDES.length}" draggable="false"
          loading="eager" decoding="async">
   </div>`).join('');
 
@@ -78,7 +78,7 @@ const updateCounter = () => {
     const imageRect = image.getBoundingClientRect();
     const productRect = productEl.getBoundingClientRect();
     const scale = productRect.width / productEl.clientWidth || 1;
-    counter.style.top = `${(imageRect.bottom - productRect.top) / scale + 5 * unit()}px`;
+    counter.style.top = `${(imageRect.bottom - productRect.top) / scale + 10.28 * unit()}px`; // image → caps : 10.28 (Figma)
   }
 };
 slider.addEventListener('scroll', () => requestAnimationFrame(updateCounter), { passive: true });
@@ -167,13 +167,18 @@ const assetRetry = $('#asset-retry');
 const appViews = [...document.querySelectorAll('.phone > .view, .phone > .choice')];
 appViews.forEach(view => { view.inert = true; });
 assetRetry.addEventListener('click', () => location.reload());
+// wait only for the images shown on screen ; the full-resolution ones (≈ 37 MB, only for the loupe)
+// keep loading in the background — the loupe waits for its own image if it is not there yet
+const screenImages = preloadImages.filter(src => !fullResolutionImages.has(src));
 let loadedAssetCount = 0;
-const assetLoads = preloadImages.map(src => preloadImage(src, !fullResolutionImages.has(src)).then(ready => {
+assetProgress.max = screenImages.length;
+const assetLoads = screenImages.map(src => preloadImage(src, true).then(ready => {
   loadedAssetCount += 1;
   assetProgress.value = loadedAssetCount;
-  assetLoaderStatus.textContent = `Loading images… ${loadedAssetCount} / ${preloadImages.length}`;
+  assetLoaderStatus.textContent = `Loading images… ${loadedAssetCount} / ${screenImages.length}`;
   return ready;
 }));
+Promise.all(assetLoads).then(() => fullResolutionImages.forEach(src => preloadImage(src, false)));
 Promise.all(assetLoads).then(results => {
   if (results.some(ready => !ready)) {
     assetLoaderStatus.textContent = 'Images could not be loaded.';
@@ -269,7 +274,7 @@ function animateLoupeToDot(img, h, dot, origin) {
   const animation = clone.animate([
     { left: origin.left, top: origin.top, transform: 'translate(-50%, -50%) scale(1)' },
     { left: `${targetLeft}px`, top: `${targetTop}px`, transform: 'translate(-50%, -50%) scale(0.25)' },
-  ], { duration: 450, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+  ], { duration: 450, easing: 'cubic-bezier(.2, .7, .2, 1)' /* = --ease in css */, fill: 'forwards' });
   animation.onfinish = () => {
     dot.style.opacity = '1';
     // Keep the flying loupe over the thumbnail while it fades in, so the
@@ -574,9 +579,19 @@ function settle() {
   });
 }
 
+let colourTimer = 0;
 function rollTo(v) {
   settle();
   const from = fmt(price), to = fmt(v), up = v > price;
+  // violet while the price goes down, green while it goes up ;
+  // when the digits stop, the colour and the label leave together, with the same fade
+  clearTimeout(colourTimer);
+  amount.classList.remove('is-price-up', 'is-price-down');
+  amount.classList.add(up ? 'is-price-up' : 'is-price-down');
+  colourTimer = setTimeout(() => {
+    amount.classList.remove('is-price-up', 'is-price-down');
+    hidePriceChange();
+  }, Math.max(from.length, to.length) * 40 + 520);
   price = v;
   amount.setAttribute('aria-label', `£${to}`);
   // align on the right (95 → 110 adds a column on the left, 110 → 95 removes it)
@@ -605,32 +620,27 @@ function rollTo(v) {
 
 function clearPriceChange() {
   clearTimeout(deltaTimer);
-  priceChange.classList.remove('is-visible', 'is-exiting');
-  priceChange.classList.remove('is-price-up', 'is-price-down');
+  clearTimeout(colourTimer);
   amount.classList.remove('is-price-up', 'is-price-down');
+  priceChange.classList.remove('is-visible', 'is-exiting');
   priceChange.textContent = '';
 }
 
+// label above the price (Figma « …qualité_liuui ») : comes in with the colour of the price,
+// leaves with it when the digits stop (see rollTo)
 function showPriceChange(change) {
   clearTimeout(deltaTimer);
-  const directionClass = change > 0 ? 'is-price-up' : 'is-price-down';
-  priceChange.textContent = change > 0 ? 'Rare detail found' : 'Imperfection found';
-  priceChange.classList.remove('is-price-up', 'is-price-down');
-  amount.classList.remove('is-price-up', 'is-price-down');
-  priceChange.classList.add(directionClass);
-  amount.classList.add(directionClass);
+  priceChange.textContent = change > 0 ? 'collection item found' : 'imperfection found';
   priceChange.classList.remove('is-exiting');
   priceChange.classList.add('is-visible');
+}
+function hidePriceChange() {
+  priceChange.classList.remove('is-visible');
+  priceChange.classList.add('is-exiting');
   deltaTimer = setTimeout(() => {
-    priceChange.classList.remove('is-visible');
-    priceChange.classList.add('is-exiting');
-    amount.classList.remove(directionClass);
-    deltaTimer = setTimeout(() => {
-      priceChange.classList.remove('is-exiting');
-      priceChange.classList.remove(directionClass);
-      priceChange.textContent = '';
-    }, 420);
-  }, 3220);
+    priceChange.classList.remove('is-exiting');
+    priceChange.textContent = '';
+  }, 600);                                                  // = --feedback-out in css
 }
 
 document.addEventListener('zonefound', e => {
@@ -653,7 +663,6 @@ function clearSelection() {
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
   price = PRICE_START;
   renderPrice(price);
-  $('#end-price').textContent = `£${price.toFixed(2)}`;
 }
 window.addEventListener('pagehide', () => {
   captured.clear();
@@ -702,8 +711,7 @@ function openRecap() {
       image.style.visibility = 'hidden';
     });
   };
-  $('#end-price').textContent = `£${price.toFixed(2)}`;
-  $('#end-label').textContent = 'Added to Cart';
+  $('#end-label').textContent = 'Added to cart';
   recapCircles.style.opacity = '1';
   product.classList.remove('is-confirmed', 'is-returning');
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
@@ -726,18 +734,16 @@ function openRecap() {
 
 function animateCheckout(circleCount) {
   const screenDistance = productEl.clientHeight || window.innerHeight;
-  const entryDuration = screenDistance / CHECKOUT_SPEED;
-  const flashDuration = 280;
+  const flashDuration = 280;                  // one image in the circle
+  const entryDuration = flashDuration;        // a blank beat first (same rhythm), then the circle appears at once, no sliding
   const duration = circleCount ? entryDuration + flashDuration * circleCount : 0;
   product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
   const started = performance.now();
-  const fixedCircle = recapCircles.querySelector('.recap__circle');
   const details = [...recapCircles.querySelectorAll('.recap__detail')];
 
   const finish = () => {
     checkoutFrame = 0;
-    $('#end-label').textContent = 'Added to Cart';
-    $('#end-price').textContent = `£${price.toFixed(2)}`;
+    $('#end-label').textContent = 'Added to cart';
     product.classList.add('is-confirmed');
     checkoutTimer = setTimeout(() => {
       animateReturn();
@@ -753,13 +759,6 @@ function animateCheckout(circleCount) {
     if (details.length) details[details.length - 1].style.visibility = 'visible';
     finish();
     return;
-  }
-
-  if (fixedCircle) {
-    fixedCircle.animate([
-      { transform: `translate3d(0, ${screenDistance}px, 0)` },
-      { transform: 'translate3d(0, 0, 0)' },
-    ], { duration: screenDistance / CHECKOUT_SPEED, easing: 'linear', fill: 'forwards' });
   }
 
   let previousIndex = -1;

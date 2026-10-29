@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
     <title>IDEA — Vintage Books</title>
-    <link rel="preload" href="fonts/Unica77LL-Regular.otf" as="font" type="font/otf" crossorigin />
     <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/frame.css" />
@@ -15,7 +14,7 @@
     <main class="phone" aria-busy="true">
       <div class="asset-loader" id="asset-loader" role="status" aria-live="polite">
         <p class="t" id="asset-loader-status">Loading images…</p>
-        <progress id="asset-progress" max="28" value="0" aria-label="Loading images"></progress>
+        <progress id="asset-progress" max="20" value="0" aria-label="Loading images"></progress>
         <p class="t" id="asset-loader-error" hidden>Some images could not be loaded.</p>
         <button class="t" id="asset-retry" type="button" hidden>Retry loading</button>
       </div>
@@ -44,18 +43,18 @@
             <a class="t" href="#catalog">IDEA</a>
             <span class="t cart">Cart (0)</span>
           </div>
-          <h1 class="t choice__title" id="choice-title" tabindex="-1">Photo Nº 194 – Novembre 1983</h1>
+          <h1 class="t choice__title" id="choice-title" tabindex="-1">Photo Nº&nbsp;194 – Novembre 1983</h1>
         </header>
         <div class="choice__grid">
           <button class="choice__card" type="button" data-choice="new">
-            <img src="assets/choice/photo-new.jpg" alt="Photo Nº 194 – Novembre 1983, new condition" width="700" height="1051">
+            <img src="assets/choice/photo-new.jpg" alt="Photo Nº&nbsp;194 – Novembre 1983, new condition" width="700" height="1051">
             <span class="choice__info">
               <span class="t">Buy new</span>
               <span class="t muted price">£95.00</span>
             </span>
           </button>
           <button class="choice__card" type="button" data-choice="vintage">
-            <img src="assets/choice/photo-used.jpg" alt="Photo Nº 194 – Novembre 1983, used condition with visible wear" width="700" height="1051">
+            <img src="assets/choice/photo-used.jpg" alt="Photo Nº&nbsp;194 – Novembre 1983, used condition with visible wear" width="700" height="1051">
             <span class="choice__info">
               <span class="t">Buy used</span>
               <span class="t muted price">From £95.00 to £25.00</span>
@@ -70,7 +69,7 @@
             <a class="t" href="#catalog">IDEA</a>
             <span class="t cart">Cart (0)</span>
           </div>
-          <h1 class="t product__title" id="product-title" tabindex="-1">Photo Nº 194 – Novembre 1983</h1>
+          <h1 class="t product__title" id="product-title" tabindex="-1">Photo Nº&nbsp;194 – Novembre 1983</h1>
         </header>
         <div class="slider" id="slider" aria-label="Book photos"></div>
         <div class="loupe" id="loupe" aria-hidden="true" hidden></div>
@@ -79,14 +78,13 @@
           <div class="recap__track" id="recap-track">
             <div class="recap__circles" id="recap-circles" aria-hidden="true"></div>
             <div class="recap__end" id="checkout-status" aria-live="polite">
-              <span class="t" id="end-label">Added to Cart</span>
-              <span class="t muted end__price" id="end-price">£95.00</span>
+              <span class="t" id="end-label">Added to cart</span>
             </div>
           </div>
         </div>
 
         <p class="t product__amount" id="amount" aria-live="polite">£95.00</p>
-        <p class="t product__delta" id="price-change" aria-hidden="true"></p>
+        <p class="t product__delta" id="price-change" aria-live="polite"></p>
         <button class="t product__add" id="product-add" type="button">Add to cart</button>
         <p class="t product__counter" id="counter" aria-live="polite">1/7</p>
       </section>
