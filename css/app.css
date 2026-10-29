@@ -198,13 +198,6 @@ img { display: block; }
   background: var(--surface-paper);
   z-index: 30;
   overflow: hidden;
-  opacity: 1;
-  transition: opacity 500ms ease, transform 700ms cubic-bezier(.3, .7, .3, 1);
-}
-.product.is-returning {
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, 100%);
 }
 .header--product { position: absolute; transform: none; left: 0; }
 .product__title {
@@ -394,6 +387,7 @@ img { display: block; }
   pointer-events: none;
   z-index: 30;
   will-change: transform;
+  backface-visibility: hidden;
 }
 .recap__track {
   position: relative;

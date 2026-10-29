@@ -555,7 +555,7 @@ function animateCircleTransition(zone, origin, done) {
   transitionAnimation = checkoutTransition.animate([
     { transform: initialTransform },
     { transform: 'translate3d(0, 0, 0) scale(1)' },
-  ], { duration: 900, easing: 'cubic-bezier(.22, .72, .28, 1)', fill: 'forwards' });
+  ], { duration: 650, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' });
   transitionAnimation.onfinish = () => {
     transitionAnimation?.cancel();
     transitionAnimation = null;
@@ -602,20 +602,16 @@ function animateCheckout(circleCount) {
 }
 
 function animateReturn(circleCount, target) {
-  const duration = circleCount ? Math.min(6000, Math.max(1800, circleCount * 450)) : 0;
+  // One short reverse scroll brings the checkout view back to its starting edge;
+  // reveal the catalog immediately after, without a second screen-sized slide.
+  const duration = circleCount ? 900 : 0;
   const started = performance.now();
   const finish = () => {
     checkoutFrame = 0;
-    recapTrack.style.transform = 'translate3d(0, 0, 0)';
-    product.classList.remove('is-confirmed');
-    void product.offsetHeight;
-    product.classList.add('is-returning');
-    checkoutTimer = setTimeout(() => {
-      checkoutPending = false;
-      checkoutZones = null;
-      transitionOrigin = null;
-      location.hash = '';
-    }, 700);
+    checkoutPending = false;
+    checkoutZones = null;
+    transitionOrigin = null;
+    location.hash = '';
   };
 
   if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -624,7 +620,9 @@ function animateReturn(circleCount, target) {
   }
   const tick = now => {
     const progress = Math.min(1, (now - started) / duration);
-    const eased = progress * progress * (3 - 2 * progress);
+    const eased = progress < 0.5
+      ? 4 * progress * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
     recapTrack.style.transform = `translate3d(0, -${target * (1 - eased)}px, 0)`;
     if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
     else finish();
