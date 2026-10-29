@@ -12,8 +12,14 @@
     <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
-    <main class="phone">
-      <section class="view catalog" id="catalog" aria-label="Book catalog">
+    <main class="phone" aria-busy="true">
+      <div class="asset-loader" id="asset-loader" role="status" aria-live="polite">
+        <p class="t" id="asset-loader-status">Loading images…</p>
+        <progress id="asset-progress" max="28" value="0" aria-label="Loading images"></progress>
+        <p class="t" id="asset-loader-error" hidden>Some images could not be loaded.</p>
+        <button class="t" id="asset-retry" type="button" hidden>Retry loading</button>
+      </div>
+      <section class="view catalog" id="catalog" aria-label="Book catalog" inert>
         <header class="header header--catalog">
           <h1 class="sr-only" tabindex="-1">IDEA book catalog</h1>
           <div class="topbar">
@@ -32,7 +38,7 @@
         </footer>
       </section>
 
-      <section class="choice" id="choice" aria-labelledby="choice-title" hidden>
+      <section class="choice" id="choice" aria-labelledby="choice-title" hidden inert>
         <header class="choice__header">
           <div class="topbar">
             <a class="t" href="#catalog">IDEA</a>
@@ -58,7 +64,7 @@
         </div>
       </section>
 
-      <section class="view product" id="product" aria-labelledby="product-title" hidden>
+      <section class="view product" id="product" aria-labelledby="product-title" hidden inert>
         <header class="header header--product">
           <div class="topbar">
             <a class="t" href="#catalog">IDEA</a>

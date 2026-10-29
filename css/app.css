@@ -158,6 +158,31 @@ img { display: block; }
   text-align: center;
 }
 
+/* ---------- first load : wait for all image assets */
+.asset-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(10 * var(--u));
+  padding: var(--m);
+  background: var(--surface-paper);
+  text-align: center;
+}
+.asset-loader progress {
+  width: min(100%, calc(200 * var(--u)));
+  accent-color: var(--color-ink);
+}
+.asset-loader button {
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* ---------- 2 — choice */
 .choice {
   position: absolute;

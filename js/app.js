@@ -91,36 +91,101 @@ const captured = new Set();
 const phoneEl = document.querySelector('.phone');
 const unit = () => (productEl.clientWidth || phoneEl.clientWidth) / 375; // 1 design px in CSS px
 
-// Preload the images used by the catalog, loupe and checkout circles.
+// Fetch every image up front; decode the smaller display assets before enabling the app.
 const imagePreloads = new Map();
-function preloadImage(src, priority = 'low') {
+const imagePreloadElements = new Map();
+const decodedImages = new Set();
+const imageDecodes = new Map();
+function preloadImage(src, shouldDecode = true) {
   if (imagePreloads.has(src)) return imagePreloads.get(src);
   const image = new Image();
   image.decoding = 'async';
-  image.fetchPriority = priority;
+  image.fetchPriority = 'high';
+  imagePreloadElements.set(src, image);
   const loaded = new Promise(resolve => {
     let settled = false;
     const finish = () => {
       if (settled) return;
       settled = true;
-      const decoded = image.decode ? image.decode().catch(() => {}) : Promise.resolve();
-      decoded.then(() => resolve(image));
+      if (!shouldDecode || !image.decode) {
+        resolve(true);
+        return;
+      }
+      image.decode().then(() => {
+        decodedImages.add(src);
+        resolve(true);
+      }, () => resolve(false));
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      resolve(false);
     };
     image.onload = finish;
-    image.onerror = () => resolve(null);
+    image.onerror = fail;
     image.src = src;
     if (image.complete && image.naturalWidth) finish();
   });
   imagePreloads.set(src, loaded);
   return loaded;
 }
-const recapImageSources = SLIDES.map(n => `assets/slides/${n}.jpg`);
-const recapImagesReady = Promise.all(recapImageSources.map(src => preloadImage(src, 'high')));
-const preloadImages = [
+function decodePreloadedImage(src) {
+  if (decodedImages.has(src)) return Promise.resolve(true);
+  if (imageDecodes.has(src)) return imageDecodes.get(src);
+  const image = imagePreloadElements.get(src);
+  const loaded = imagePreloads.get(src) || preloadImage(src, false);
+  const decoding = loaded.then(ready => {
+    if (!ready || !image) return false;
+    if (!image.decode) {
+      decodedImages.add(src);
+      return true;
+    }
+    return image.decode().then(() => {
+      decodedImages.add(src);
+      return true;
+    }, () => false);
+  }).finally(() => imageDecodes.delete(src));
+  imageDecodes.set(src, decoding);
+  return decoding;
+}
+
+const choiceImages = ['assets/choice/photo-new.jpg', 'assets/choice/photo-used.jpg'];
+const fullResolutionImages = new Set(SLIDES.map(n => `assets/slides-full/${n}.jpg`));
+const preloadImages = [...new Set([
   ...BOOKS.map(book => `assets/catalog/${book.slug}.jpg`),
+  ...choiceImages,
   ...SLIDES.flatMap(n => [`assets/slides/${n}.jpg`, `assets/slides-full/${n}.jpg`]),
-];
-preloadImages.forEach(src => preloadImage(src, recapImageSources.includes(src) ? 'high' : 'low'));
+])];
+const recapImageSources = SLIDES.map(n => `assets/slides/${n}.jpg`);
+const recapImagesReady = Promise.all(recapImageSources.map(src => imagePreloads.get(src) || preloadImage(src)));
+const phone = document.querySelector('.phone');
+const assetLoader = $('#asset-loader');
+const assetLoaderStatus = $('#asset-loader-status');
+const assetProgress = $('#asset-progress');
+const assetLoaderError = $('#asset-loader-error');
+const assetRetry = $('#asset-retry');
+const appViews = [...document.querySelectorAll('.phone > .view, .phone > .choice')];
+appViews.forEach(view => { view.inert = true; });
+assetRetry.addEventListener('click', () => location.reload());
+let loadedAssetCount = 0;
+const assetLoads = preloadImages.map(src => preloadImage(src, !fullResolutionImages.has(src)).then(ready => {
+  loadedAssetCount += 1;
+  assetProgress.value = loadedAssetCount;
+  assetLoaderStatus.textContent = `Loading images… ${loadedAssetCount} / ${preloadImages.length}`;
+  return ready;
+}));
+Promise.all(assetLoads).then(results => {
+  if (results.some(ready => !ready)) {
+    assetLoaderStatus.textContent = 'Images could not be loaded.';
+    assetProgress.hidden = true;
+    assetLoaderError.hidden = false;
+    assetRetry.hidden = false;
+    return;
+  }
+  appViews.forEach(view => { view.inert = false; });
+  phone.removeAttribute('aria-busy');
+  assetLoader.hidden = true;
+});
 
 function hit(img, clientX, clientY) {
   const r = img.getBoundingClientRect();
@@ -130,15 +195,27 @@ function hit(img, clientX, clientY) {
   return { r, fx, fy, inside };
 }
 
-function paintZoom(el, img, h, size) {
+function paintZoom(el, img, h, size, source = img.dataset.full) {
   // background of a circle of `size` px showing the image ×ZOOM around (fx, fy)
   const W = h.r.width * ZOOM, H = h.r.height * ZOOM;
-  el.style.backgroundImage = `url(${img.dataset.full})`;
+  el.style.backgroundImage = `url(${source})`;
   el.style.backgroundSize = `${W}px ${H}px`;
   el.style.backgroundPosition = `${size / 2 - h.fx * W}px ${size / 2 - h.fy * h.r.width * ZOOM}px`;
 }
 
+let loupeRequest = 0;
 function showLoupe(img, clientX, clientY, lift) {
+  const source = img.dataset.full;
+  if (!decodedImages.has(source)) {
+    const request = ++loupeRequest;
+    decodePreloadedImage(source).then(ready => {
+      if (request !== loupeRequest) return;
+      if (!ready) img.dataset.full = img.getAttribute('src');
+      showLoupe(img, clientX, clientY, lift);
+    });
+    return;
+  }
+  loupeRequest += 1;
   const h = hit(img, clientX, clientY);
   h.fx = Math.min(1, Math.max(0, h.fx));
   h.fy = Math.min(h.r.height / h.r.width, Math.max(0, h.fy));
@@ -174,7 +251,10 @@ function animateLoupeToDot(img, h, dot, origin) {
   clone.style.width = clone.style.height = `${LOUPE * unit()}px`;
   clone.style.left = origin.left;
   clone.style.top = origin.top;
-  if (!origin.visible) paintZoom(clone, img, h, LOUPE * unit());
+  if (!origin.visible) {
+    const source = decodedImages.has(img.dataset.full) ? img.dataset.full : img.getAttribute('src');
+    paintZoom(clone, img, h, LOUPE * unit(), source);
+  }
   loupe.hidden = true;
   productEl.appendChild(clone);
 
@@ -215,7 +295,7 @@ function capture(img, clientX, clientY) {
     if (dist > d.r) return;
     captured.add(key);
     const dot = document.createElement('span');
-    dot._spot = { full: img.dataset.full, fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
+    dot._spot = { full: img.getAttribute('src'), fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
     // same view as the loupe at release, scaled down from 200 to 50
     paintSpot(dot, dot._spot, THUMB * unit(), ZOOM * THUMB / LOUPE);
     dot._zone = { full: img.getAttribute('src'), fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
@@ -226,7 +306,10 @@ function capture(img, clientX, clientY) {
   });
 }
 
-function hideLoupe() { loupe.hidden = true; }
+function hideLoupe() {
+  loupeRequest += 1;
+  loupe.hidden = true;
+}
 
 // found circles : as many rows as fit between 56.75 and 10 above the caps of the bottom line
 function fitFound() {
