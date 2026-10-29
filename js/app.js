@@ -1,7 +1,7 @@
 (function () {
 // IDEA — prototype
 // Flow (same as the Figma prototype) :
-// catalog → tap « Photo November 1983 N194 » → choice → « Buy vintage » → product slideshow
+// catalog → tap « Photo Nº 194 – Novembre 1983 » → choice → « Buy used » → product slideshow
 
 const BOOKS = [
   { slug: 'tulsa',    title: 'Larry Clark Tulsa 1st Ed',          price: '£400.00' },
@@ -10,7 +10,7 @@ const BOOKS = [
   { slug: 'teller',   title: 'Juergen Teller Go-Sees',            price: '£550.00' },
   { slug: 'lostboys', title: 'Lost Boys A Life In Tunnels',       price: '£325.00' },
   { slug: 'ibiza',    title: 'Las Chicas de Ibiza',               price: '£350.00' },
-  { slug: 'photo',    title: 'Photo November 1983 N194',          price: '£280.00', link: 'choice' },
+  { slug: 'photo',    title: 'Photo Nº 194 – Novembre 1983',      price: '£280.00', link: 'choice' },
   { slug: 'edo',      title: 'Edo Bertoglio New York Polaroids',  price: '£400.00' },
   { slug: 'cocaine',  title: 'Cocaine Calendar 1980',             price: '£250.00' },
   { slug: 'dicaprio', title: 'Leonardo DiCaprio Romantic Hero',   price: '£65.00'  },
@@ -24,7 +24,7 @@ const SLIDES = ['01', '02', '03', '04', '05', '06', '07'];
 
 // zones, per slide. x / y = centre, r = radius — all in fractions of the image width
 // (y is also a fraction of the image width, so circles stay round).
-// kind : 'defect' (red in Figma → price goes down) / 'quality' (green → price goes up)
+// kind : 'defect' lowers the price / 'quality' raises it; the active loupe signals the direction.
 // From the Figma page « Défauts — zones ».
 const DEFECTS = {
   '02': [ { kind: 'defect',  x: 0.6587, y: 0.0850, r: 0.07 } ],   // image swapped 2 ↔ 6
@@ -64,7 +64,7 @@ const slider = $('#slider');
 slider.innerHTML = SLIDES.map((n, i) => `
   <div class="slide" data-n="${n}">
     <img src="assets/slides/${n}.jpg" data-full="assets/slides-full/${n}.jpg"
-         alt="Photo November 1983 N194 — ${i + 1}/${SLIDES.length}" draggable="false"
+         alt="Photo Nº 194 – Novembre 1983 — ${i + 1}/${SLIDES.length}" draggable="false"
          loading="eager" decoding="async">
   </div>`).join('');
 
@@ -143,9 +143,51 @@ function paintSpot(el, s, size, zoom, fill) {
   el.style.backgroundPosition = `${size / 2 - fx * W}px ${size / 2 - fy * W}px`;
 }
 
+function animateLoupeToDot(img, h, dot, origin) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    dot.style.opacity = '1';
+    return;
+  }
+
+  const clone = loupe.cloneNode(false);
+  clone.removeAttribute('id');
+  clone.removeAttribute('hidden');
+  clone.style.width = clone.style.height = `${LOUPE * unit()}px`;
+  clone.style.left = origin.left;
+  clone.style.top = origin.top;
+  if (!origin.visible) paintZoom(clone, img, h, LOUPE * unit());
+  loupe.hidden = true;
+  productEl.appendChild(clone);
+
+  const productRect = productEl.getBoundingClientRect();
+  const scale = productRect.width / productEl.clientWidth || 1;
+  const dotRect = dot.getBoundingClientRect();
+  const targetLeft = (dotRect.left + dotRect.width / 2 - productRect.left) / scale;
+  const targetTop = (dotRect.top + dotRect.height / 2 - productRect.top) / scale;
+  const animation = clone.animate([
+    { left: origin.left, top: origin.top, transform: 'translate(-50%, -50%) scale(1)' },
+    { left: `${targetLeft}px`, top: `${targetTop}px`, transform: 'translate(-50%, -50%) scale(0.25)' },
+  ], { duration: 450, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' });
+  animation.onfinish = () => {
+    dot.style.opacity = '1';
+    clone.remove();
+  };
+  animation.oncancel = () => {
+    dot.style.opacity = '1';
+    clone.remove();
+  };
+}
+
 function capture(img, clientX, clientY) {
   const h = hit(img, clientX, clientY);
   if (!h.inside) return;
+  const productRect = productEl.getBoundingClientRect();
+  const productScale = productRect.width / productEl.clientWidth || 1;
+  const origin = {
+    visible: !loupe.hidden,
+    left: loupe.hidden ? `${(clientX - productRect.left) / productScale}px` : loupe.style.left,
+    top: loupe.hidden ? `${(clientY - productRect.top) / productScale}px` : loupe.style.top,
+  };
   const slide = img.closest('.slide').dataset.n;
   (DEFECTS[slide] || []).forEach((d, k) => {
     const key = `${slide}-${k}`;
@@ -157,9 +199,10 @@ function capture(img, clientX, clientY) {
     dot._spot = { full: img.dataset.full, fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
     // same view as the loupe at release, scaled down from 200 to 50
     paintSpot(dot, dot._spot, THUMB * unit(), ZOOM * THUMB / LOUPE);
-    dot.dataset.kind = d.kind;                 // 'defect' / 'quality'
     dot._zone = { full: img.dataset.full, fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
+    dot.style.opacity = '0';
     found.appendChild(dot);
+    animateLoupeToDot(img, h, dot, origin);
     document.dispatchEvent(new CustomEvent('zonefound', { detail: { slide, index: k, kind: d.kind } }));
   });
 }
@@ -243,6 +286,7 @@ window.addEventListener('pointerup', e => {
   if (!drag) return;
   const w = slider.clientWidth, dx = e.clientX - drag.x;
   if (!drag.moved && drag.img) capture(drag.img, e.clientX, e.clientY);
+  hideLoupe();
   let i = Math.round(drag.left / w);
   if (Math.abs(dx) > w * 0.15) i += dx < 0 ? 1 : -1;
   i = Math.max(0, Math.min(SLIDES.length - 1, i));
@@ -279,25 +323,29 @@ const choice = $('#choice');
 const product = $('#product');
 
 let current = 'catalog';
+let pageTransitionTimer = 0;
 function show(view) {
+  clearTimeout(pageTransitionTimer);
+  pageTransitionTimer = 0;
+  const enteringProductFromChoice = view === 'product' && current === 'choice' && product.classList.contains('is-page-entering');
   if (view === 'end') view = 'recap';
   if (view !== 'recap' && checkoutPending) {
     cancelAnimationFrame(checkoutFrame);
     clearTimeout(checkoutTimer);
-    transitionAnimation?.cancel();
-    transitionAnimation = null;
-    checkoutTransition.hidden = true;
-    checkoutTransition.style.transform = 'none';
+    clearTimeout(entryTimer);
+    entryTimer = 0;
+    slider.classList.remove('is-fading');
     checkoutPending = false;
     checkoutZones = null;
-    transitionOrigin = null;
     recapTrack.style.transform = 'translate3d(0, 0, 0)';
-    product.classList.remove('is-confirmed', 'is-returning');
-    product.classList.remove('is-transitioning-in');
+    product.classList.remove('is-confirmed', 'is-returning', 'is-entering');
   }
-  if (view === 'product') product.classList.remove('is-confirmed', 'is-returning', 'is-transitioning-in');
+  if (view === 'product') {
+    product.classList.remove('is-confirmed', 'is-returning', 'is-entering');
+    slider.classList.remove('is-fading');
+  }
   const inProduct = ['product', 'recap'].includes(view);
-  choice.hidden = view !== 'choice';
+  choice.hidden = view !== 'choice' && !enteringProductFromChoice;
   product.hidden = !inProduct;
   product.classList.toggle('is-recap', view === 'recap');
   document.body.classList.toggle('locked', view !== 'catalog');
@@ -306,9 +354,23 @@ function show(view) {
   if (view === 'catalog' && current === 'recap') {
     recapCircles.replaceChildren();
     clearSelection();
-    product.classList.remove('is-confirmed', 'is-returning', 'is-transitioning-in');
+    slider.classList.remove('is-fading');
+    product.classList.remove('is-confirmed', 'is-returning', 'is-entering');
   }
   current = view;
+
+  if (view === 'choice' && choice.classList.contains('is-page-entering')) {
+    requestAnimationFrame(() => requestAnimationFrame(() => choice.classList.remove('is-page-entering')));
+  }
+  if (enteringProductFromChoice) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      product.classList.remove('is-page-entering');
+      pageTransitionTimer = setTimeout(() => {
+        if (current === 'product') choice.hidden = true;
+        pageTransitionTimer = 0;
+      }, 650);
+    }));
+  }
 }
 
 function route() {
@@ -321,17 +383,23 @@ queueMicrotask(route);                                   // after the whole scri
 // catalog → choice
 grid.addEventListener('click', e => {
   const card = e.target.closest('[data-link]');
-  if (card) location.hash = card.dataset.link;
+  if (card) {
+    choice.classList.add('is-page-entering');
+    location.hash = card.dataset.link;
+  }
 });
 
-// choice : vintage → product, tap on the veil → back to the catalog
+// choice : vintage → product, tap outside the cards → back to the catalog
 choice.addEventListener('click', e => {
   const btn = e.target.closest('[data-choice]');
   if (btn) {
-    if (btn.dataset.choice === 'vintage') location.hash = 'product';
+    if (btn.dataset.choice === 'vintage') {
+      product.classList.add('is-page-entering');
+      location.hash = 'product';
+    }
     return; // « Buy new » : no destination yet (same as Figma)
   }
-  if (!e.target.closest('.choice__band')) history.back();
+  if (!e.target.closest('.choice__grid') && !e.target.closest('a')) history.back();
 });
 
 
@@ -342,6 +410,7 @@ const PRICE_STEP = { defect: -10, quality: +15 };
 let price = PRICE_START;
 
 const amount = $('#amount');
+const detailFeedback = $('#detail-feedback');
 const fmt = v => v.toFixed(2);                       // '95.00'
 // strip : [blank, 0–9, 0–9, 0–9] → a digit rests in the middle cycle (11 + d)
 const CELLS = [' ', ...'0123456789'.repeat(3)];
@@ -389,6 +458,8 @@ function renderPrice(v) {
 }
 
 let timers = [];
+let feedbackTimer = 0;
+let feedbackExitTimer = 0;
 // finish any running roll instantly (keeps fast successive finds clean)
 function settle() {
   timers.forEach(clearTimeout); timers = [];
@@ -427,22 +498,47 @@ function rollTo(v) {
   });
 }
 
+function clearDetailFeedback() {
+  clearTimeout(feedbackTimer);
+  clearTimeout(feedbackExitTimer);
+  detailFeedback.classList.remove('is-visible', 'is-exiting');
+  detailFeedback.textContent = '';
+}
+
+function showDetailFeedback(message) {
+  clearTimeout(feedbackTimer);
+  clearTimeout(feedbackExitTimer);
+  detailFeedback.textContent = message;
+  detailFeedback.classList.remove('is-exiting');
+  detailFeedback.classList.add('is-visible');
+  feedbackTimer = setTimeout(() => {
+    detailFeedback.classList.remove('is-visible');
+    detailFeedback.classList.add('is-exiting');
+    feedbackExitTimer = setTimeout(() => {
+      detailFeedback.classList.remove('is-exiting');
+      detailFeedback.textContent = '';
+    }, 220);
+  }, 3220);
+}
+
 document.addEventListener('zonefound', e => {
   const next = Math.max(0, price + PRICE_STEP[e.detail.kind]);
-  if (next !== price) rollTo(next);
+  if (next !== price) {
+    showDetailFeedback(next > price ? 'Rare detail found' : 'Imperfection found');
+    rollTo(next);
+  }
 });
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => renderPrice(price));
 
 // A browser may restore this page from its back/forward cache. Clear temporary
 // inspection marks on navigation and restore the starting price on return.
 function clearSelection() {
+  clearDetailFeedback();
   timers.forEach(clearTimeout);
   timers = [];
   captured.clear();
   found.replaceChildren();
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
-  checkoutTransition.hidden = true;
-  checkoutTransition.style.transform = 'none';
   price = PRICE_START;
   renderPrice(price);
   $('#end-price').textContent = `£${price.toFixed(2)}`;
@@ -463,13 +559,11 @@ const recap = $('#recap');
 const recapTrack = $('#recap-track');
 const recapCircles = $('#recap-circles');
 const checkoutStatus = $('#checkout-status');
-const checkoutTransition = $('#checkout-transition');
 let checkoutPending = false;
 let checkoutFrame = 0;
 let checkoutTimer = 0;
-let transitionAnimation = null;
+let entryTimer = 0;
 let checkoutZones = null;
-let transitionOrigin = null;
 
 function getCheckoutZones() {
   const currentIndex = Math.max(0, Math.min(SLIDES.length - 1,
@@ -483,30 +577,6 @@ function getCheckoutZones() {
   });
 }
 
-function getTransitionOrigin(zone) {
-  const productRect = productEl.getBoundingClientRect();
-  const scale = productRect.width / productEl.clientWidth || 1;
-  const currentIndex = Math.max(0, Math.min(SLIDES.length - 1,
-    Math.round(slider.scrollLeft / (slider.clientWidth || 1))));
-  if (zone?.slide === SLIDES[currentIndex]) {
-    const img = slider.children[currentIndex]?.querySelector('img');
-    if (img) {
-      const r = img.getBoundingClientRect();
-      return {
-        x: (r.left - productRect.left + zone.fx * r.width) / scale,
-        y: (r.top - productRect.top + zone.fy * r.width) / scale,
-      };
-    }
-  }
-  const dot = [...found.children].find(node => node._zone === zone);
-  if (dot) {
-    const r = dot.getBoundingClientRect();
-    return { x: (r.left + r.width / 2 - productRect.left) / scale,
-             y: (r.top + r.height / 2 - productRect.top) / scale };
-  }
-  return { x: productEl.clientWidth / 2, y: productEl.clientHeight / 2 };
-}
-
 function openRecap() {
   const zones = checkoutPending && checkoutZones ? checkoutZones : getCheckoutZones();
   recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
@@ -516,60 +586,27 @@ function openRecap() {
   product.classList.remove('is-confirmed', 'is-returning');
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
   if (checkoutPending) requestAnimationFrame(() => {
-    if (zones.length && transitionOrigin) {
-      animateCircleTransition(zones[0], transitionOrigin, () => animateCheckout(zones.length));
-    } else {
-      product.classList.remove('is-transitioning-in');
-      animateCheckout(zones.length);
+    if (!checkoutPending || current !== 'recap') return;
+    animateCheckout(zones.length);
+    if (!zones.length || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      product.classList.remove('is-entering');
+      return;
     }
+    entryTimer = setTimeout(() => {
+      slider.classList.add('is-fading');
+      entryTimer = setTimeout(() => {
+        product.classList.remove('is-entering');
+        slider.classList.remove('is-fading');
+        entryTimer = 0;
+      }, 180);
+    }, 280);
   });
-}
-
-function animateCircleTransition(zone, origin, done) {
-  const firstCircle = recapCircles.firstElementChild;
-  if (!firstCircle || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    product.classList.remove('is-transitioning-in');
-    done();
-    return;
-  }
-  const productRect = productEl.getBoundingClientRect();
-  const scale = productRect.width / productEl.clientWidth || 1;
-  const circleRect = firstCircle.getBoundingClientRect();
-  const size = circleRect.width / scale;
-  const left = (circleRect.left - productRect.left) / scale;
-  const top = (circleRect.top - productRect.top) / scale;
-  const targetX = left + size / 2;
-  const targetY = top + size / 2;
-
-  checkoutTransition.hidden = false;
-  checkoutTransition.style.left = `${left}px`;
-  checkoutTransition.style.top = `${top}px`;
-  checkoutTransition.style.width = `${size}px`;
-  checkoutTransition.style.height = `${size}px`;
-  checkoutTransition.style.transformOrigin = 'center center';
-  checkoutTransition.style.transform = 'none';
-  paintSpot(checkoutTransition, zone, size, BIG_ZOOM, true);
-  firstCircle.style.visibility = 'hidden';
-
-  const initialTransform = `translate3d(${origin.x - targetX}px, ${origin.y - targetY}px, 0) scale(${50 * unit() / size})`;
-  transitionAnimation = checkoutTransition.animate([
-    { transform: initialTransform },
-    { transform: 'translate3d(0, 0, 0) scale(1)' },
-  ], { duration: 450, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' });
-  transitionAnimation.onfinish = () => {
-    transitionAnimation?.cancel();
-    transitionAnimation = null;
-    checkoutTransition.hidden = true;
-    checkoutTransition.style.transform = 'none';
-    firstCircle.style.visibility = '';
-    product.classList.remove('is-transitioning-in');
-    done();
-  };
 }
 
 function animateCheckout(circleCount) {
   const target = checkoutStatus.offsetTop;
-  const duration = circleCount ? Math.min(16000, Math.max(4500, circleCount * 1350)) : 0;
+  // Slightly slow the circle sequence while keeping its ease-in-out curve.
+  const duration = circleCount ? Math.min(2800, Math.max(750, circleCount * 270)) : 0;
   const started = performance.now();
 
   const finish = () => {
@@ -590,7 +627,7 @@ function animateCheckout(circleCount) {
 
   const tick = now => {
     const progress = Math.min(1, (now - started) / duration);
-    const eased = 1 - Math.pow(1 - progress, 2.2);
+    const eased = (1 - Math.cos(Math.PI * progress)) / 2;
     recapTrack.style.transform = `translate3d(0, -${target * eased}px, 0)`;
     if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
     else {
@@ -608,7 +645,6 @@ function animateReturn() {
   checkoutTimer = setTimeout(() => {
     checkoutPending = false;
     checkoutZones = null;
-    transitionOrigin = null;
     location.hash = '';
   }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650);
 }
@@ -619,9 +655,8 @@ $('#product-add').addEventListener('click', () => {
   cart += 1;
   document.querySelectorAll('.cart').forEach(c => { c.textContent = `Cart (${cart})`; });
   checkoutZones = getCheckoutZones();
-  transitionOrigin = checkoutZones.length ? getTransitionOrigin(checkoutZones[0]) : null;
   checkoutPending = true;
-  product.classList.add('is-transitioning-in');
+  product.classList.add('is-entering');
   location.hash = 'recap';
 });
 

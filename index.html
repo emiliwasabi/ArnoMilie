@@ -32,18 +32,31 @@
         </footer>
       </section>
 
-      <div class="choice" id="choice" role="group" aria-label="Choose book condition" hidden>
-        <div class="choice__band">
-          <button class="choice__btn" type="button" data-choice="new">
-            <span class="t">Buy new</span>
-            <span class="t muted price">£95.00</span>
+      <section class="choice" id="choice" aria-labelledby="choice-title" hidden>
+        <header class="choice__header">
+          <div class="topbar">
+            <a class="t" href="#catalog">IDEA</a>
+            <span class="t cart">Cart (0)</span>
+          </div>
+          <h1 class="t choice__title" id="choice-title" tabindex="-1">Photo Nº 194 – Novembre 1983</h1>
+        </header>
+        <div class="choice__grid">
+          <button class="choice__card" type="button" data-choice="new">
+            <img src="assets/choice/photo-new.jpg" alt="Photo Nº 194 – Novembre 1983, new condition" width="700" height="1051">
+            <span class="choice__info">
+              <span class="t">Buy new</span>
+              <span class="t muted price">£95.00</span>
+            </span>
           </button>
-          <button class="choice__btn" type="button" data-choice="vintage">
-            <span class="t">Buy used</span>
-            <span class="t muted price">£25.00</span>
+          <button class="choice__card" type="button" data-choice="vintage">
+            <img src="assets/choice/photo-used.jpg" alt="Photo Nº 194 – Novembre 1983, used condition with visible wear" width="700" height="1051">
+            <span class="choice__info">
+              <span class="t">Buy used</span>
+              <span class="t muted price">From 95.00£ to 25.00£</span>
+            </span>
           </button>
         </div>
-      </div>
+      </section>
 
       <section class="view product" id="product" aria-labelledby="product-title" hidden>
         <header class="header header--product">
@@ -51,13 +64,12 @@
             <a class="t" href="#catalog">IDEA</a>
             <span class="t cart">Cart (0)</span>
           </div>
-          <h1 class="t product__title" id="product-title" tabindex="-1">Photo November 1983 N194</h1>
+          <h1 class="t product__title" id="product-title" tabindex="-1">Photo Nº 194 – Novembre 1983</h1>
+          <p class="t product__feedback" id="detail-feedback" aria-live="polite" aria-atomic="true"></p>
         </header>
         <div class="slider" id="slider" aria-label="Book photos"></div>
         <div class="loupe" id="loupe" aria-hidden="true" hidden></div>
         <div class="found" id="found" aria-label="Details you found"></div>
-        <div class="checkout-transition" id="checkout-transition" aria-hidden="true" hidden></div>
-
         <div class="recap" id="recap">
           <div class="recap__track" id="recap-track">
             <div class="recap__circles" id="recap-circles" aria-hidden="true"></div>
