@@ -52,7 +52,7 @@ const grid = $('#grid');
 grid.innerHTML = BOOKS.map((b, i) => `
   <button type="button" class="card" ${b.link ? `data-link="${b.link}"` : `disabled aria-label="${b.title} (not available in this demo)"`}>
     <img class="card__cover" src="assets/catalog/${b.slug}.jpg" alt="${b.title}"
-         width="518" height="777" ${i > 3 ? 'loading="lazy"' : ''}>
+         width="518" height="777" loading="eager" decoding="async">
     <div class="card__info">
       <span class="t">${b.title}</span>
       <span class="t muted price">${b.price}</span>
@@ -65,7 +65,7 @@ slider.innerHTML = SLIDES.map((n, i) => `
   <div class="slide" data-n="${n}">
     <img src="assets/slides/${n}.jpg" data-full="assets/slides-full/${n}.jpg"
          alt="Photo November 1983 N194 — ${i + 1}/${SLIDES.length}" draggable="false"
-         ${i ? 'loading="lazy"' : ''}>
+         loading="eager" decoding="async">
   </div>`).join('');
 
 const counter = $('#counter');
@@ -83,8 +83,17 @@ const captured = new Set();
 const phoneEl = document.querySelector('.phone');
 const unit = () => (productEl.clientWidth || phoneEl.clientWidth) / 375; // 1 design px in CSS px
 
-// preload full-resolution images
-SLIDES.forEach(n => { const i = new Image(); i.src = `assets/slides-full/${n}.jpg`; });
+// Preload every image used by the catalog and the product experience.
+const preloadImages = [
+  ...BOOKS.map(book => `assets/catalog/${book.slug}.jpg`),
+  ...SLIDES.flatMap(n => [`assets/slides/${n}.jpg`, `assets/slides-full/${n}.jpg`]),
+];
+preloadImages.forEach(src => {
+  const image = new Image();
+  image.decoding = 'async';
+  image.fetchPriority = 'low';
+  image.src = src;
+});
 
 function hit(img, clientX, clientY) {
   const r = img.getBoundingClientRect();
@@ -392,6 +401,25 @@ document.addEventListener('zonefound', e => {
   if (next !== price) rollTo(next);
 });
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => renderPrice(price));
+
+// A browser may restore this page from its back/forward cache. Clear temporary
+// inspection marks on navigation and restore the starting price on return.
+function clearSelection() {
+  timers.forEach(clearTimeout);
+  timers = [];
+  captured.clear();
+  found.replaceChildren();
+  price = PRICE_START;
+  renderPrice(price);
+  $('#end-price').textContent = `£${price.toFixed(2)}`;
+}
+window.addEventListener('pagehide', () => {
+  captured.clear();
+  found.replaceChildren();
+});
+window.addEventListener('pageshow', event => {
+  if (event.persisted) clearSelection();
+});
 
 // ---------- recap : tap the price → the found zones cross the screen, circle after circle
 // (355 Ø, ×5.54, 20 apart, each stops on the screen axis), then « Add to cart » + current price.
