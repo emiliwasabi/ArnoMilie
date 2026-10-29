@@ -555,7 +555,7 @@ function animateCircleTransition(zone, origin, done) {
   transitionAnimation = checkoutTransition.animate([
     { transform: initialTransform },
     { transform: 'translate3d(0, 0, 0) scale(1)' },
-  ], { duration: 650, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' });
+  ], { duration: 450, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'forwards' });
   transitionAnimation.onfinish = () => {
     transitionAnimation?.cancel();
     transitionAnimation = null;
@@ -578,7 +578,7 @@ function animateCheckout(circleCount) {
     $('#end-price').textContent = `£${price.toFixed(2)}`;
     product.classList.add('is-confirmed');
     checkoutTimer = setTimeout(() => {
-      animateReturn(circleCount, target);
+      animateReturn();
     }, 2000);
   };
 
@@ -601,33 +601,16 @@ function animateCheckout(circleCount) {
   checkoutFrame = requestAnimationFrame(tick);
 }
 
-function animateReturn(circleCount, target) {
-  // One short reverse scroll brings the checkout view back to its starting edge;
-  // reveal the catalog immediately after, without a second screen-sized slide.
-  const duration = circleCount ? 900 : 0;
-  const started = performance.now();
-  const finish = () => {
-    checkoutFrame = 0;
+function animateReturn() {
+  // Continue scrolling downward past the confirmation screen, revealing the
+  // catalog underneath instead of replaying the circle sequence backwards.
+  product.classList.add('is-returning');
+  checkoutTimer = setTimeout(() => {
     checkoutPending = false;
     checkoutZones = null;
     transitionOrigin = null;
     location.hash = '';
-  };
-
-  if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    finish();
-    return;
-  }
-  const tick = now => {
-    const progress = Math.min(1, (now - started) / duration);
-    const eased = progress < 0.5
-      ? 4 * progress * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-    recapTrack.style.transform = `translate3d(0, -${target * (1 - eased)}px, 0)`;
-    if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
-    else finish();
-  };
-  checkoutFrame = requestAnimationFrame(tick);
+  }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 650);
 }
 
 // ---------- add to cart → animated checkout → return to the catalog
