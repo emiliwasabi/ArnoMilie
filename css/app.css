@@ -370,15 +370,15 @@ img { display: block; }
   inset: 0;
   overflow: hidden;
   touch-action: none;
-  scroll-snap-type: none;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  padding: calc(50cqh - 177.5 * var(--u)) 0 0;
-  scroll-behavior: auto;
   z-index: 11;                                /* above the header (10) : circles pass over it */
 }
-.recap::-webkit-scrollbar { display: none; }
+.recap__track {
+  position: relative;
+  width: var(--w);
+  padding-top: calc(50cqh - 177.5 * var(--u));
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
 .recap__circles {
   display: flex;
   flex-direction: column;

@@ -285,7 +285,7 @@ function show(view) {
     cancelAnimationFrame(checkoutFrame);
     clearTimeout(checkoutTimer);
     checkoutPending = false;
-    recap.scrollTop = 0;
+    recapTrack.style.transform = 'translate3d(0, 0, 0)';
   }
   const inProduct = ['product', 'recap'].includes(view);
   choice.hidden = view !== 'choice';
@@ -430,6 +430,7 @@ function clearSelection() {
   timers = [];
   captured.clear();
   found.replaceChildren();
+  recapTrack.style.transform = 'translate3d(0, 0, 0)';
   price = PRICE_START;
   renderPrice(price);
   $('#end-price').textContent = `£${price.toFixed(2)}`;
@@ -447,6 +448,7 @@ window.addEventListener('pageshow', event => {
 const BIG = 355;                     // circle = the column
 const BIG_ZOOM = 1968.16 / 355;      // InDesign page 4 ≈ ×5.54
 const recap = $('#recap');
+const recapTrack = $('#recap-track');
 const recapCircles = $('#recap-circles');
 const checkoutStatus = $('#checkout-status');
 let checkoutPending = false;
@@ -460,14 +462,13 @@ function openRecap() {
   [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
   $('#end-price').textContent = `£${price.toFixed(2)}`;
   $('#end-label').textContent = 'Added to Cart';
-  recap.scrollTop = 0;
+  recapTrack.style.transform = 'translate3d(0, 0, 0)';
   if (checkoutPending) requestAnimationFrame(() => animateCheckout(zones.length));
 }
 
 function animateCheckout(circleCount) {
-  const start = recap.scrollTop;
-  const target = Math.max(start, checkoutStatus.offsetTop);
-  const duration = circleCount ? Math.min(3200, Math.max(850, circleCount * 260)) : 0;
+  const target = checkoutStatus.offsetTop;
+  const duration = circleCount ? Math.min(7500, Math.max(2200, circleCount * 600)) : 0;
   const started = performance.now();
 
   const finish = () => {
@@ -481,18 +482,20 @@ function animateCheckout(circleCount) {
   };
 
   if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    recap.scrollTop = target;
+    recapTrack.style.transform = `translate3d(0, -${target}px, 0)`;
     finish();
     return;
   }
 
   const tick = now => {
     const progress = Math.min(1, (now - started) / duration);
-    const eased = 1 - Math.pow(1 - progress, 3.2);
-    recap.scrollTop = start + (target - start) * eased;
+    const easedIn = Math.pow(progress, 2.5);
+    const easedOut = Math.pow(1 - progress, 2.5);
+    const eased = easedIn / (easedIn + easedOut);
+    recapTrack.style.transform = `translate3d(0, -${target * eased}px, 0)`;
     if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
     else {
-      recap.scrollTop = target;
+      recapTrack.style.transform = `translate3d(0, -${target}px, 0)`;
       finish();
     }
   };
