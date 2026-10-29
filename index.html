@@ -59,13 +59,14 @@
 
         <div class="recap" id="recap">
           <div class="recap__circles" id="recap-circles" aria-hidden="true"></div>
-          <button class="recap__end" id="add" type="button">
-            <span class="t">Add to cart</span>
+          <div class="recap__end" id="checkout-status" aria-live="polite">
+            <span class="t" id="end-label">Added to Cart</span>
             <span class="t muted end__price" id="end-price">£95.00</span>
-          </button>
+          </div>
         </div>
 
-        <button class="t product__amount" id="amount" type="button" aria-live="polite">£95.00</button>
+        <p class="t product__amount" id="amount" aria-live="polite">£95.00</p>
+        <button class="t product__add" id="product-add" type="button">Add to cart</button>
         <p class="t product__counter" id="counter" aria-live="polite">1/7</p>
       </section>
     </main>

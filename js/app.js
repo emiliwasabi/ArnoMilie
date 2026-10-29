@@ -71,7 +71,15 @@ slider.innerHTML = SLIDES.map((n, i) => `
 const counter = $('#counter');
 const updateCounter = () => {
   const i = Math.round(slider.scrollLeft / slider.clientWidth);
-  counter.textContent = `${Math.min(i, SLIDES.length - 1) + 1}/${SLIDES.length}`;
+  const index = Math.min(i, SLIDES.length - 1);
+  counter.textContent = `${index + 1}/${SLIDES.length}`;
+  const image = slider.children[index]?.querySelector('img');
+  if (image && productEl.clientWidth) {
+    const imageRect = image.getBoundingClientRect();
+    const productRect = productEl.getBoundingClientRect();
+    const scale = productRect.width / productEl.clientWidth || 1;
+    counter.style.top = `${(imageRect.bottom - productRect.top) / scale + 5 * unit()}px`;
+  }
 };
 slider.addEventListener('scroll', () => requestAnimationFrame(updateCounter), { passive: true });
 
@@ -113,7 +121,8 @@ function paintZoom(el, img, h, size) {
 
 function showLoupe(img, clientX, clientY, lift) {
   const h = hit(img, clientX, clientY);
-  if (!h.inside) { loupe.hidden = true; return; }
+  h.fx = Math.min(1, Math.max(0, h.fx));
+  h.fy = Math.min(h.r.height / h.r.width, Math.max(0, h.fy));
   const u = unit(), size = LOUPE * u, p = productEl.getBoundingClientRect();
   loupe.hidden = false;
   loupe.style.left = `${clientX - p.left}px`;
@@ -168,13 +177,15 @@ function fitFound() {
   found.style.setProperty('--rows', rows);
 }
 window.addEventListener('resize', fitFound);
+window.addEventListener('resize', updateCounter);
 window.addEventListener('hashchange', () => setTimeout(fitFound, 0));
 fitFound();
 
 // touch : hold still ~0.2 s on an image → loupe ; move right away → normal swipe
 let press = null;
 slider.addEventListener('touchstart', e => {
-  const img = e.target.closest('.slide img');
+  const slide = e.target.closest('.slide');
+  const img = slide?.querySelector('img');
   if (!img || e.touches.length > 1) return;
   const t = e.touches[0];
   press = { img, x: t.clientX, y: t.clientY, active: false };
@@ -214,13 +225,13 @@ slider.addEventListener('contextmenu', e => e.preventDefault());
 let drag = null;
 slider.addEventListener('pointermove', e => {
   if (e.pointerType !== 'mouse' || drag?.moved) return;
-  const img = e.target.closest('.slide img');
+  const img = e.target.closest('.slide')?.querySelector('img');
   img ? showLoupe(img, e.clientX, e.clientY, false) : hideLoupe();
 });
 slider.addEventListener('pointerleave', hideLoupe);
 slider.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse') return;
-  drag = { x: e.clientX, left: slider.scrollLeft, moved: false, img: e.target.closest('.slide img') };
+  drag = { x: e.clientX, left: slider.scrollLeft, moved: false, img: e.target.closest('.slide')?.querySelector('img') };
   slider.style.scrollSnapType = 'none';
 });
 window.addEventListener('pointermove', e => {
@@ -270,6 +281,12 @@ const product = $('#product');
 let current = 'catalog';
 function show(view) {
   if (view === 'end') view = 'recap';
+  if (view !== 'recap' && checkoutPending) {
+    cancelAnimationFrame(checkoutFrame);
+    clearTimeout(checkoutTimer);
+    checkoutPending = false;
+    recap.scrollTop = 0;
+  }
   const inProduct = ['product', 'recap'].includes(view);
   choice.hidden = view !== 'choice';
   product.hidden = !inProduct;
@@ -277,6 +294,10 @@ function show(view) {
   document.body.classList.toggle('locked', view !== 'catalog');
   if (view === 'product' && current !== 'recap') { slider.scrollLeft = 0; updateCounter(); }
   if (view === 'recap') openRecap();
+  if (view === 'catalog' && current === 'recap') {
+    recapCircles.replaceChildren();
+    clearSelection();
+  }
   current = view;
 }
 
@@ -427,8 +448,10 @@ const BIG = 355;                     // circle = the column
 const BIG_ZOOM = 1968.16 / 355;      // InDesign page 4 ≈ ×5.54
 const recap = $('#recap');
 const recapCircles = $('#recap-circles');
-
-$('#amount').addEventListener('click', () => { location.hash = 'recap'; });
+const checkoutStatus = $('#checkout-status');
+let checkoutPending = false;
+let checkoutFrame = 0;
+let checkoutTimer = 0;
 
 function openRecap() {
   const zones = [...found.children].map(d => d._zone)
@@ -436,15 +459,53 @@ function openRecap() {
   recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
   [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
   $('#end-price').textContent = `£${price.toFixed(2)}`;
+  $('#end-label').textContent = 'Added to Cart';
   recap.scrollTop = 0;
+  if (checkoutPending) requestAnimationFrame(() => animateCheckout(zones.length));
 }
 
-// ---------- add to cart → Cart (1), back to the catalog
+function animateCheckout(circleCount) {
+  const start = recap.scrollTop;
+  const target = Math.max(start, checkoutStatus.offsetTop);
+  const duration = circleCount ? Math.min(3200, Math.max(850, circleCount * 260)) : 0;
+  const started = performance.now();
+
+  const finish = () => {
+    checkoutFrame = 0;
+    $('#end-label').textContent = 'Added to Cart';
+    $('#end-price').textContent = `£${price.toFixed(2)}`;
+    checkoutTimer = setTimeout(() => {
+      checkoutPending = false;
+      location.hash = '';
+    }, 2000);
+  };
+
+  if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    recap.scrollTop = target;
+    finish();
+    return;
+  }
+
+  const tick = now => {
+    const progress = Math.min(1, (now - started) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3.2);
+    recap.scrollTop = start + (target - start) * eased;
+    if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
+    else {
+      recap.scrollTop = target;
+      finish();
+    }
+  };
+  checkoutFrame = requestAnimationFrame(tick);
+}
+
+// ---------- add to cart → animated checkout → return to the catalog
 let cart = 0;
-$('#add').addEventListener('click', () => {
+$('#product-add').addEventListener('click', () => {
   cart += 1;
   document.querySelectorAll('.cart').forEach(c => { c.textContent = `Cart (${cart})`; });
-  location.hash = '';
+  checkoutPending = true;
+  location.hash = 'recap';
 });
 
 })();
