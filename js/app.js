@@ -284,9 +284,18 @@ function show(view) {
   if (view !== 'recap' && checkoutPending) {
     cancelAnimationFrame(checkoutFrame);
     clearTimeout(checkoutTimer);
+    transitionAnimation?.cancel();
+    transitionAnimation = null;
+    checkoutTransition.hidden = true;
+    checkoutTransition.style.transform = 'none';
     checkoutPending = false;
+    checkoutZones = null;
+    transitionOrigin = null;
     recapTrack.style.transform = 'translate3d(0, 0, 0)';
+    product.classList.remove('is-confirmed', 'is-returning');
+    product.classList.remove('is-transitioning-in');
   }
+  if (view === 'product') product.classList.remove('is-confirmed', 'is-returning', 'is-transitioning-in');
   const inProduct = ['product', 'recap'].includes(view);
   choice.hidden = view !== 'choice';
   product.hidden = !inProduct;
@@ -297,6 +306,7 @@ function show(view) {
   if (view === 'catalog' && current === 'recap') {
     recapCircles.replaceChildren();
     clearSelection();
+    product.classList.remove('is-confirmed', 'is-returning', 'is-transitioning-in');
   }
   current = view;
 }
@@ -431,6 +441,8 @@ function clearSelection() {
   captured.clear();
   found.replaceChildren();
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
+  checkoutTransition.hidden = true;
+  checkoutTransition.style.transform = 'none';
   price = PRICE_START;
   renderPrice(price);
   $('#end-price').textContent = `£${price.toFixed(2)}`;
@@ -451,19 +463,108 @@ const recap = $('#recap');
 const recapTrack = $('#recap-track');
 const recapCircles = $('#recap-circles');
 const checkoutStatus = $('#checkout-status');
+const checkoutTransition = $('#checkout-transition');
 let checkoutPending = false;
 let checkoutFrame = 0;
 let checkoutTimer = 0;
+let transitionAnimation = null;
+let checkoutZones = null;
+let transitionOrigin = null;
+
+function getCheckoutZones() {
+  const currentIndex = Math.max(0, Math.min(SLIDES.length - 1,
+    Math.round(slider.scrollLeft / (slider.clientWidth || 1))));
+  const currentSlide = SLIDES[currentIndex];
+  const zones = [...found.children].map(dot => dot._zone);
+  return zones.sort((a, b) => {
+    if (a.slide === currentSlide && b.slide !== currentSlide) return -1;
+    if (b.slide === currentSlide && a.slide !== currentSlide) return 1;
+    return a.slide.localeCompare(b.slide) || a.k - b.k;
+  });
+}
+
+function getTransitionOrigin(zone) {
+  const productRect = productEl.getBoundingClientRect();
+  const scale = productRect.width / productEl.clientWidth || 1;
+  const currentIndex = Math.max(0, Math.min(SLIDES.length - 1,
+    Math.round(slider.scrollLeft / (slider.clientWidth || 1))));
+  if (zone?.slide === SLIDES[currentIndex]) {
+    const img = slider.children[currentIndex]?.querySelector('img');
+    if (img) {
+      const r = img.getBoundingClientRect();
+      return {
+        x: (r.left - productRect.left + zone.fx * r.width) / scale,
+        y: (r.top - productRect.top + zone.fy * r.width) / scale,
+      };
+    }
+  }
+  const dot = [...found.children].find(node => node._zone === zone);
+  if (dot) {
+    const r = dot.getBoundingClientRect();
+    return { x: (r.left + r.width / 2 - productRect.left) / scale,
+             y: (r.top + r.height / 2 - productRect.top) / scale };
+  }
+  return { x: productEl.clientWidth / 2, y: productEl.clientHeight / 2 };
+}
 
 function openRecap() {
-  const zones = [...found.children].map(d => d._zone)
-    .sort((a, b) => a.slide.localeCompare(b.slide) || a.k - b.k);          // order of the images
+  const zones = checkoutPending && checkoutZones ? checkoutZones : getCheckoutZones();
   recapCircles.innerHTML = zones.map(() => '<div class="recap__circle"></div>').join('');
   [...recapCircles.children].forEach((c, i) => paintSpot(c, zones[i], BIG * unit(), BIG_ZOOM, true));
   $('#end-price').textContent = `£${price.toFixed(2)}`;
   $('#end-label').textContent = 'Added to Cart';
+  product.classList.remove('is-confirmed', 'is-returning');
   recapTrack.style.transform = 'translate3d(0, 0, 0)';
-  if (checkoutPending) requestAnimationFrame(() => animateCheckout(zones.length));
+  if (checkoutPending) requestAnimationFrame(() => {
+    if (zones.length && transitionOrigin) {
+      animateCircleTransition(zones[0], transitionOrigin, () => animateCheckout(zones.length));
+    } else {
+      product.classList.remove('is-transitioning-in');
+      animateCheckout(zones.length);
+    }
+  });
+}
+
+function animateCircleTransition(zone, origin, done) {
+  const firstCircle = recapCircles.firstElementChild;
+  if (!firstCircle || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    product.classList.remove('is-transitioning-in');
+    done();
+    return;
+  }
+  const productRect = productEl.getBoundingClientRect();
+  const scale = productRect.width / productEl.clientWidth || 1;
+  const circleRect = firstCircle.getBoundingClientRect();
+  const size = circleRect.width / scale;
+  const left = (circleRect.left - productRect.left) / scale;
+  const top = (circleRect.top - productRect.top) / scale;
+  const targetX = left + size / 2;
+  const targetY = top + size / 2;
+
+  checkoutTransition.hidden = false;
+  checkoutTransition.style.left = `${left}px`;
+  checkoutTransition.style.top = `${top}px`;
+  checkoutTransition.style.width = `${size}px`;
+  checkoutTransition.style.height = `${size}px`;
+  checkoutTransition.style.transformOrigin = 'center center';
+  checkoutTransition.style.transform = 'none';
+  paintSpot(checkoutTransition, zone, size, BIG_ZOOM, true);
+  firstCircle.style.visibility = 'hidden';
+
+  const initialTransform = `translate3d(${origin.x - targetX}px, ${origin.y - targetY}px, 0) scale(${50 * unit() / size})`;
+  transitionAnimation = checkoutTransition.animate([
+    { transform: initialTransform },
+    { transform: 'translate3d(0, 0, 0) scale(1)' },
+  ], { duration: 900, easing: 'cubic-bezier(.22, .72, .28, 1)', fill: 'forwards' });
+  transitionAnimation.onfinish = () => {
+    transitionAnimation?.cancel();
+    transitionAnimation = null;
+    checkoutTransition.hidden = true;
+    checkoutTransition.style.transform = 'none';
+    firstCircle.style.visibility = '';
+    product.classList.remove('is-transitioning-in');
+    done();
+  };
 }
 
 function animateCheckout(circleCount) {
@@ -475,9 +576,9 @@ function animateCheckout(circleCount) {
     checkoutFrame = 0;
     $('#end-label').textContent = 'Added to Cart';
     $('#end-price').textContent = `£${price.toFixed(2)}`;
+    product.classList.add('is-confirmed');
     checkoutTimer = setTimeout(() => {
-      checkoutPending = false;
-      location.hash = '';
+      animateReturn(circleCount, target);
     }, 2000);
   };
 
@@ -500,12 +601,46 @@ function animateCheckout(circleCount) {
   checkoutFrame = requestAnimationFrame(tick);
 }
 
+function animateReturn(circleCount, target) {
+  const duration = circleCount ? Math.min(6000, Math.max(1800, circleCount * 450)) : 0;
+  const started = performance.now();
+  const finish = () => {
+    checkoutFrame = 0;
+    recapTrack.style.transform = 'translate3d(0, 0, 0)';
+    product.classList.remove('is-confirmed');
+    void product.offsetHeight;
+    product.classList.add('is-returning');
+    checkoutTimer = setTimeout(() => {
+      checkoutPending = false;
+      checkoutZones = null;
+      transitionOrigin = null;
+      location.hash = '';
+    }, 700);
+  };
+
+  if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    finish();
+    return;
+  }
+  const tick = now => {
+    const progress = Math.min(1, (now - started) / duration);
+    const eased = progress * progress * (3 - 2 * progress);
+    recapTrack.style.transform = `translate3d(0, -${target * (1 - eased)}px, 0)`;
+    if (progress < 1) checkoutFrame = requestAnimationFrame(tick);
+    else finish();
+  };
+  checkoutFrame = requestAnimationFrame(tick);
+}
+
 // ---------- add to cart → animated checkout → return to the catalog
 let cart = 0;
 $('#product-add').addEventListener('click', () => {
   cart += 1;
   document.querySelectorAll('.cart').forEach(c => { c.textContent = `Cart (${cart})`; });
+  checkoutZones = getCheckoutZones();
+  transitionOrigin = checkoutZones.length ? getTransitionOrigin(checkoutZones[0]) : null;
   checkoutPending = true;
+  product.classList.add('is-transitioning-in');
   location.hash = 'recap';
 });
 
