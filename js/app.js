@@ -440,12 +440,22 @@ function show(view) {
   if (view !== 'recap' && checkoutPending) {
     cancelAnimationFrame(checkoutFrame);
     clearTimeout(checkoutTimer);
+    if (checkoutSliderExit) {
+      checkoutSliderExit.cancel();
+      checkoutSliderExit = null;
+    }
+    slider.style.transform = '';
     checkoutPending = false;
     checkoutZones = null;
     recapTrack.style.transform = 'translate3d(0, 0, 0)';
     product.classList.remove('is-confirmed', 'is-returning');
   }
   if (view === 'product') {
+    if (checkoutSliderExit) {
+      checkoutSliderExit.cancel();
+      checkoutSliderExit = null;
+    }
+    slider.style.transform = '';
     product.classList.remove('is-confirmed', 'is-returning');
   }
   const inProduct = ['product', 'recap'].includes(view);
@@ -456,6 +466,11 @@ function show(view) {
   if (view === 'product' && current !== 'recap') { slider.scrollLeft = 0; updateCounter(); }
   if (view === 'recap') openRecap();
   if (view === 'catalog' && current === 'recap') {
+    if (checkoutSliderExit) {
+      checkoutSliderExit.cancel();
+      checkoutSliderExit = null;
+    }
+    slider.style.transform = '';
     recapCircles.replaceChildren();
     clearSelection();
     product.classList.remove('is-confirmed', 'is-returning');
@@ -603,19 +618,28 @@ function rollTo(v) {
 function clearPriceChange() {
   clearTimeout(deltaTimer);
   priceChange.classList.remove('is-visible', 'is-exiting');
+  priceChange.classList.remove('is-price-up', 'is-price-down');
+  amount.classList.remove('is-price-up', 'is-price-down');
   priceChange.textContent = '';
 }
 
 function showPriceChange(change) {
   clearTimeout(deltaTimer);
-  priceChange.textContent = `${change > 0 ? '+' : '–'}£${fmt(Math.abs(change))}`;
+  const directionClass = change > 0 ? 'is-price-up' : 'is-price-down';
+  priceChange.textContent = change > 0 ? 'Rare detail found' : 'Imperfection found';
+  priceChange.classList.remove('is-price-up', 'is-price-down');
+  amount.classList.remove('is-price-up', 'is-price-down');
+  priceChange.classList.add(directionClass);
+  amount.classList.add(directionClass);
   priceChange.classList.remove('is-exiting');
   priceChange.classList.add('is-visible');
   deltaTimer = setTimeout(() => {
     priceChange.classList.remove('is-visible');
     priceChange.classList.add('is-exiting');
+    amount.classList.remove(directionClass);
     deltaTimer = setTimeout(() => {
       priceChange.classList.remove('is-exiting');
+      priceChange.classList.remove(directionClass);
       priceChange.textContent = '';
     }, 420);
   }, 3220);
@@ -653,7 +677,7 @@ window.addEventListener('pageshow', event => {
 
 // ---------- recap : tap the price → the found zones cross the screen, circle after circle
 // (355 Ø, ×5.54, 20 apart, each stops on the screen axis), then « Add to cart » + current price.
-const BIG = 355;                     // circle = the column
+const BIG = 355;                     // original circle diameter
 const BIG_ZOOM = 1968.16 / 355;      // InDesign page 4 ≈ ×5.54
 const CHECKOUT_SPEED = 0.9;           // shared CSS pixels per millisecond for the full checkout motion
 const recap = $('#recap');
@@ -664,6 +688,7 @@ let checkoutPending = false;
 let checkoutFrame = 0;
 let checkoutTimer = 0;
 let checkoutZones = null;
+let checkoutSliderExit = null;
 
 function getCheckoutZones() {
   const currentIndex = Math.max(0, Math.min(SLIDES.length - 1,
@@ -684,11 +709,11 @@ function openRecap() {
     recapCircles.innerHTML = zones.length
       ? `<div class="recap__circle">${zones.map(() => '<div class="recap__detail"></div>').join('')}</div>`
       : '';
+    const distance = Math.min(BIG * unit(), productEl.clientHeight || window.innerHeight);
     [...recapCircles.querySelectorAll('.recap__detail')].forEach((image, i) => {
       image._basePosition = paintSpot(image, zones[i], BIG * unit(), BIG_ZOOM, true);
-      image.style.transform = i === 0 ? 'translate3d(0, 0, 0)' : `translate3d(0, ${BIG * unit()}px, 0)`;
+      image.style.transform = i === 0 ? 'translate3d(0, 0, 0)' : `translate3d(0, ${distance}px, 0)`;
       if (i === 0) {
-        const distance = BIG * unit();
         const roomDown = -image._basePosition.y;
         const direction = roomDown >= distance ? 1 : -1;
         image._entryDirection = direction;
@@ -719,10 +744,10 @@ function openRecap() {
 }
 
 function animateCheckout(circleCount) {
-  const detailDistance = BIG * unit();
+  const screenDistance = productEl.clientHeight || window.innerHeight;
+  const detailDistance = Math.min(BIG * unit(), screenDistance);
   const detailDuration = detailDistance / CHECKOUT_SPEED;
   const duration = circleCount ? detailDuration * circleCount : 0;
-  const screenDistance = productEl.clientHeight || window.innerHeight;
   product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
   const started = performance.now();
   const fixedCircle = recapCircles.querySelector('.recap__circle');
@@ -734,7 +759,7 @@ function animateCheckout(circleCount) {
     product.classList.add('is-confirmed');
     checkoutTimer = setTimeout(() => {
       animateReturn();
-    }, 3000);
+    }, 2500);
   };
 
   if (!duration || matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -747,6 +772,16 @@ function animateCheckout(circleCount) {
       { transform: `translate3d(0, ${screenDistance}px, 0)` },
       { transform: 'translate3d(0, 0, 0)' },
     ], { duration: screenDistance / CHECKOUT_SPEED, easing: 'linear', fill: 'forwards' });
+    checkoutSliderExit?.cancel();
+    checkoutSliderExit = slider.animate([
+      { transform: 'translate3d(0, 0, 0)' },
+      { transform: `translate3d(0, -${screenDistance}px, 0)` },
+    ], { duration: screenDistance / CHECKOUT_SPEED, easing: 'linear', fill: 'forwards' });
+    checkoutSliderExit.onfinish = () => {
+      slider.style.transform = `translate3d(0, -${screenDistance}px, 0)`;
+      checkoutSliderExit.cancel();
+      checkoutSliderExit = null;
+    };
   }
 
   const tick = now => {

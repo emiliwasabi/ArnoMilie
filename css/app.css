@@ -270,21 +270,26 @@ img { display: block; }
 }
 .product__delta {
   position: absolute;
-  bottom: calc(var(--m) + 34 * var(--u));
+  bottom: calc(var(--m) + 36 * var(--u));
   left: var(--m);
   z-index: 2;
   margin: 0;
   color: var(--text-secondary);
-  font-size: calc(35 * var(--u));
-  line-height: calc(42 * var(--u));
+  font-size: var(--size);
+  line-height: var(--lead);
   opacity: 0;
   transform: translateY(calc(10 * var(--u)));
   pointer-events: none;
 }
 .product__delta.is-visible { opacity: 1; transform: translateY(0); }
 .product__delta.is-exiting { opacity: 0; transform: translateY(calc(18 * var(--u))); }
+.product__amount.is-price-up,
+.product__delta.is-price-up { color: #00AD0B; }
+.product__amount.is-price-down,
+.product__delta.is-price-down { color: #743EA7; }
 @media (prefers-reduced-motion: no-preference) {
-  .product__delta { transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .7, .2, 1); }
+  .product__delta { transition: opacity 220ms ease, transform 220ms cubic-bezier(.2, .7, .2, 1), color 180ms ease; }
+  .product__amount { transition: color 180ms ease; }
 }
 .product__price {
   position: absolute;
@@ -396,6 +401,7 @@ img { display: block; }
 }
 @supports not (text-box: trim-both cap alphabetic) {
   .product__amount { margin-top: calc(-9.08 * var(--u)); margin-bottom: calc(-7.51 * var(--u)); }
+  .product__add { margin-bottom: calc(-7.51 * var(--u)); }
 }
 
 /* rolling digits (like Revolut) : each digit is a window one line high,
@@ -426,11 +432,8 @@ img { display: block; }
 }
 .product__add {
   right: var(--m);
-  min-height: 44px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding-bottom: calc(2 * var(--u));
+  display: block;
+  padding: 0;
   white-space: nowrap;
 }
 .product__counter {
