@@ -281,7 +281,7 @@ img { display: block; }
   left: var(--m);
   font-weight: 400;
 }
-.product__delta {                           /* « IMPERFECTION FOUND » / « RARE DETAIL FOUND » (Figma « …qualité_liuui ») */
+.product__delta {                           /* « Imperfection found » / « Rare detail found » (Figma « …qualité_liuui ») */
   position: absolute;
   bottom: calc(var(--m) + 36.59 * var(--u)); /* baseline 765 on 812, as in Figma */
   left: var(--m);
