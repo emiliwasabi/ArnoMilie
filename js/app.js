@@ -630,7 +630,7 @@ function clearPriceChange() {
 // leaves with it when the digits stop (see rollTo)
 function showPriceChange(change) {
   clearTimeout(deltaTimer);
-  priceChange.textContent = change > 0 ? 'collection item found' : 'imperfection found';
+  priceChange.textContent = change > 0 ? 'RARE DETAIL FOUND' : 'IMPERFECTION FOUND';
   priceChange.classList.remove('is-exiting');
   priceChange.classList.add('is-visible');
 }
