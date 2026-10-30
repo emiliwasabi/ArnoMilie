@@ -708,6 +708,7 @@ window.addEventListener('pageshow', event => {
 const BIG = 355;                     // original circle diameter
 const BIG_ZOOM = 1968.16 / 355;      // InDesign page 4 ≈ ×5.54
 const CHECKOUT_SPEED = 0.9;           // shared CSS pixels per millisecond for the full checkout motion
+const CHECKOUT_FLASH_DURATION = 250;  // each detail flashes for 0.25 seconds
 const recap = $('#recap');
 const recapTrack = $('#recap-track');
 const recapCircles = $('#recap-circles');
@@ -765,8 +766,8 @@ function openRecap() {
 
 function animateCheckout(circleCount) {
   const screenDistance = productEl.clientHeight || window.innerHeight;
-  const flashDuration = 280;                  // one image in the circle
-  const entryDuration = flashDuration;        // a blank beat first (same rhythm), then the circle appears at once, no sliding
+  const flashDuration = CHECKOUT_FLASH_DURATION;
+  const entryDuration = flashDuration;        // a blank beat first, then each detail appears at once
   const duration = circleCount ? entryDuration + flashDuration * circleCount : 0;
   product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
   const started = performance.now();
