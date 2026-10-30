@@ -56,6 +56,7 @@
 
   /* motion : one curve for every eased movement (pages, digits, feedback) */
   --ease: cubic-bezier(.2, .7, .2, 1);
+  --page-motion: 1300ms;             /* every page change : catalog → choice → product → catalog */
   --feedback-in: 250ms;              /* label + colour of the price : in */
   --feedback-out: 600ms;             /* label + colour of the price : out, together */
   --price-down: #743ea7;             /* violet while the price goes down */
@@ -263,16 +264,16 @@ img { display: block; }
   will-change: transform;
   backface-visibility: hidden;
 }
-.product.is-returning {
+.product.is-returning {                     /* last page change : same speed and curve as the first two (--page-motion, --ease) */
   transform: translate(-50%, -100%);
-  transition-duration: var(--checkout-motion-duration, 650ms);
-  transition-timing-function: linear;
+  transition-duration: var(--page-motion);
+  transition-timing-function: var(--ease);
 }
 .product.is-page-entering {
   transform: translate(-50%, 100%);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .choice, .product { transition: transform 650ms var(--ease); }
+  .choice, .product { transition: transform var(--page-motion) var(--ease); }
 }
 .header--product { position: absolute; transform: none; left: 0; }
 .product__title {
@@ -378,6 +379,7 @@ img { display: block; }
 }
 .found span {
   display: block;
+  overflow: hidden;
   width: calc(50 * var(--u));
   height: calc(50 * var(--u));
   border-radius: 50%;
@@ -388,6 +390,9 @@ img { display: block; }
 @media (prefers-reduced-motion: no-preference) {
   .found span { transition: opacity 150ms ease; }
 }
+
+/* the canvas picture inside the flying loupe and the 50 px circles */
+.pic { display: block; width: 100%; height: 100%; border-radius: 50%; }
 
 /* debug : add ?zones to the URL to see the defect zones */
 .zone {

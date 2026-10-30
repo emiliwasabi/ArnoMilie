@@ -85,6 +85,7 @@ slider.addEventListener('scroll', () => requestAnimationFrame(updateCounter), { 
 
 // ---------- loupe + defects
 const loupe = $('#loupe');
+
 const found = $('#found');
 const productEl = $('#product');
 const captured = new Set();
@@ -247,7 +248,31 @@ function paintSpot(el, s, size, zoom, fill) {
   return { x, y, height: W * s.ratio };
 }
 
-function animateLoupeToDot(img, h, dot, origin) {
+// the loupe view at release, drawn ONCE into a small canvas. The flying circle and the 50 px circle
+// both show this same little picture (like the glass version did with its snapshot) : nothing has to be
+// redrawn from the 5160 px photo during the flight or at the landing, so the landing stays smooth.
+// (drawing into a canvas works with file:// too : nothing is read back.)
+function loupePicture(img, h, cssSize) {
+  const full = img.dataset.full, el = decodedImages.has(full) && imagePreloadElements.get(full);
+  const source = el && el.naturalWidth ? el : img;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(cssSize * dpr);
+  const c = document.createElement('canvas'); c.width = c.height = w;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, w);
+  const nw = source.naturalWidth, sw = nw * cssSize / (h.r.width * ZOOM);   // field of the loupe, in source pixels
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, h.fx * nw - sw / 2, h.fy * nw - sw / 2, sw, sw, 0, 0, w, w);
+  return c;
+}
+function pictureCopy(picture, cssSize) {                 // the same picture, smaller (the 50 px circle)
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.round(cssSize * dpr);
+  const c = document.createElement('canvas'); c.width = c.height = w;
+  const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(picture, 0, 0, w, w);
+  return c;
+}
+
+function animateLoupeToDot(img, h, dot, origin, picture) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
     dot.style.opacity = '1';
     return;
@@ -259,10 +284,10 @@ function animateLoupeToDot(img, h, dot, origin) {
   clone.style.width = clone.style.height = `${LOUPE * unit()}px`;
   clone.style.left = origin.left;
   clone.style.top = origin.top;
-  if (!origin.visible) {
-    const source = decodedImages.has(img.dataset.full) ? img.dataset.full : img.getAttribute('src');
-    paintZoom(clone, img, h, LOUPE * unit(), source);
-  }
+  clone.style.backgroundImage = 'none';                    // shows the canvas picture instead
+  clone.style.overflow = 'hidden';
+  picture.className = 'pic';
+  clone.appendChild(picture);
   loupe.hidden = true;
   productEl.appendChild(clone);
 
@@ -271,10 +296,14 @@ function animateLoupeToDot(img, h, dot, origin) {
   const dotRect = dot.getBoundingClientRect();
   const targetLeft = (dotRect.left + dotRect.width / 2 - productRect.left) / scale;
   const targetTop = (dotRect.top + dotRect.height / 2 - productRect.top) / scale;
+  // only transform moves (no left / top) : the circle is drawn once and the graphics card
+  // moves and shrinks it, so it stays smooth on a phone even with the full-resolution image inside
+  const dx = targetLeft - parseFloat(origin.left), dy = targetTop - parseFloat(origin.top);
+  clone.style.willChange = 'transform';
   const animation = clone.animate([
-    { left: origin.left, top: origin.top, transform: 'translate(-50%, -50%) scale(1)' },
-    { left: `${targetLeft}px`, top: `${targetTop}px`, transform: 'translate(-50%, -50%) scale(0.25)' },
-  ], { duration: 450, easing: 'cubic-bezier(.2, .7, .2, 1)' /* = --ease in css */, fill: 'forwards' });
+   { transform: 'translate(0, 0) translate(-50%, -50%) scale(1)' },
+   { transform: `translate(${dx}px, ${dy}px) translate(-50%, -50%) scale(0.25)` },
+  ], { duration: 450, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }); // ease-in-out : a travel, starts and lands softly
   animation.onfinish = () => {
     dot.style.opacity = '1';
     // Keep the flying loupe over the thumbnail while it fades in, so the
@@ -306,13 +335,15 @@ function capture(img, clientX, clientY) {
     captured.add(key);
     const dot = document.createElement('span');
     const snapshotSource = decodedImages.has(img.dataset.full) ? img.dataset.full : img.getAttribute('src');
-    dot._spot = { full: snapshotSource, fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
-    // same view as the loupe at release, scaled down from 200 to 50
-    paintSpot(dot, dot._spot, THUMB * unit(), ZOOM * THUMB / LOUPE);
+    dot._spot = { full: img.getAttribute('src'), fx: h.fx, fy: h.fy, ratio: h.r.height / h.r.width };
+    // same picture as the flying loupe, scaled down from 200 to 50
+    const picture = loupePicture(img, h, LOUPE * unit());
+    const small = pictureCopy(picture, THUMB * unit()); small.className = 'pic';
+    dot.appendChild(small);
     dot._zone = { full: snapshotSource, fx: d.x, fy: d.y, ratio: h.r.height / h.r.width, slide, k };
-    dot.style.opacity = '0';
+    dot.style.opacity = '0.01';                // drawn in advance (not 0, which skips drawing), shown when the loupe lands
     found.appendChild(dot);
-    animateLoupeToDot(img, h, dot, origin);
+    animateLoupeToDot(img, h, dot, origin, picture);
     document.dispatchEvent(new CustomEvent('zonefound', { detail: { slide, index: k, kind: d.kind } }));
   });
 }
@@ -479,7 +510,7 @@ function show(view) {
       pageTransitionTimer = setTimeout(() => {
         if (current === 'product') choice.hidden = true;
         pageTransitionTimer = 0;
-      }, 650);
+      }, PAGE_MOTION);
     }));
   }
 }
@@ -747,7 +778,7 @@ function animateCheckout(circleCount) {
     product.classList.add('is-confirmed');
     checkoutTimer = setTimeout(() => {
       animateReturn();
-    }, 2500);
+    }, ADDED_HOLD);
   };
 
   if (!duration) {
@@ -778,17 +809,16 @@ function animateCheckout(circleCount) {
   checkoutFrame = requestAnimationFrame(tick);
 }
 
+const ADDED_HOLD = 2000;             // ms on « Added to cart » before the page goes back to the catalog (was 2500)
+const PAGE_MOTION = 1300;            // ms, = --page-motion in css : every page change
 function animateReturn() {
-  // Continue scrolling downward past the confirmation screen, revealing the
-  // catalog underneath instead of replaying the circle sequence backwards.
-  const screenDistance = productEl.clientHeight || window.innerHeight;
-  product.style.setProperty('--checkout-motion-duration', `${screenDistance / CHECKOUT_SPEED}ms`);
+  // the page slides up and reveals the catalog : same speed and curve as the two first page changes
   product.classList.add('is-returning');
   checkoutTimer = setTimeout(() => {
     checkoutPending = false;
     checkoutZones = null;
     location.hash = '';
-  }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : screenDistance / CHECKOUT_SPEED);
+  }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : PAGE_MOTION);
 }
 
 // ---------- add to cart → animated checkout → return to the catalog
